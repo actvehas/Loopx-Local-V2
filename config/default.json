@@ -1,0 +1,26 @@
+{
+  "hetzner": {
+    "host": "65.109.85.250",
+    "user": "root",
+    "remote_dir": "/root/loopx-local"
+  },
+  "tts": {
+    "model": "Qwen3-TTS-12Hz-1.7B-Base-8bit",
+    "speed": 0.9,
+    "chunk_words": 300,
+    "language": "es"
+  },
+  "whisper": {
+    "model": "base",
+    "language": "es",
+    "scene_duration": 8,
+    "scene_min_duration": 6
+  },
+  "assembly": {
+    "crossfade": 0.6,
+    "silence_threshold": "-40dB",
+    "crf": 18,
+    "encoder_linux": "libx264",
+    "encoder_mac": "h264_videotoolbox"
+  }
+}

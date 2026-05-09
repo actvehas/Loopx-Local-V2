@@ -1,0 +1,37 @@
+{
+  "name": "remotion-fe",
+  "version": "1.0.0",
+  "scripts": {
+    "render": "remotion render src/index.ts FeAlDescubierto out.mp4",
+    "preview": "remotion studio src/index.ts"
+  },
+  "dependencies": {
+    "@remotion/animated-emoji": "^4.0.454",
+    "@remotion/animation-utils": "^4.0.454",
+    "@remotion/bundler": "^4.0.0",
+    "@remotion/captions": "^4.0.454",
+    "@remotion/cli": "^4.0.0",
+    "@remotion/gif": "^4.0.454",
+    "@remotion/google-fonts": "^4.0.0",
+    "@remotion/layout-utils": "^4.0.454",
+    "@remotion/lottie": "^4.0.454",
+    "@remotion/media-utils": "^4.0.454",
+    "@remotion/motion-blur": "^4.0.454",
+    "@remotion/noise": "^4.0.454",
+    "@remotion/paths": "^4.0.454",
+    "@remotion/preload": "^4.0.454",
+    "@remotion/renderer": "^4.0.0",
+    "@remotion/shapes": "^4.0.454",
+    "@remotion/skia": "^4.0.454",
+    "@remotion/transitions": "^4.0.454",
+    "@remotion/zod-types": "^4.0.454",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0",
+    "remotion": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/react": "^18.0.0",
+    "typescript": "^5.0.0"
+  }
+}

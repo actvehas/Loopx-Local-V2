@@ -1,0 +1,57 @@
+{
+  "_doc": "DNA do canal — define quais combos da Narrative Forge são PERMITIDOS pra este canal. Editar manualmente. Cópia em Obsidian/Projetos/Meus Canais/{Canal}/forge-dna.json",
+
+  "canal": "X",
+  "nome": "Nome do Canal",
+
+  "filtros_locked": {
+    "_doc": "Filtros que NUNCA mudam neste canal",
+    "pessoa": "1p",
+    "audiencia": "maduro",
+    "nicho": "emo"
+  },
+
+  "filtros_variable": {
+    "_doc": "Filtros que rotacionam (escolhe um por EP, evitando últimos 3)",
+    "tom": ["nostalgia", "triste", "esperanca"],
+    "intensidade": ["sussurro", "conversa"],
+    "objetivo": ["retencao", "engaj"]
+  },
+
+  "duracao": {
+    "_doc": "Buckets permitidos. Pipeline avisa se sair ±10% do alvo.",
+    "permitidos": ["medio", "longo"],
+    "default": "longo",
+    "buckets": {
+      "curto":   { "min_min": 8,  "max_min": 15, "palavras": 1500,  "cenas_aprox": 90 },
+      "medio":   { "min_min": 15, "max_min": 30, "palavras": 3000,  "cenas_aprox": 180 },
+      "longo":   { "min_min": 30, "max_min": 60, "palavras": 6000,  "cenas_aprox": 360 },
+      "maraton": { "min_min": 60, "max_min": 90, "palavras": 10000, "cenas_aprox": 600 }
+    },
+    "rotacao_janela": 3
+  },
+
+  "layers_allowed": {
+    "_doc": "Quais opções (A-L) de cada camada são permitidas neste canal. Lista vazia = todas.",
+    "D01_HOOK":         ["A", "C", "E", "K"],
+    "D02_PERSPECTIVA":  ["A", "B", "F"],
+    "D03_ARQUITETURA":  ["A", "C", "H", "K"],
+    "D04_TOM":          ["B", "I", "L"],
+    "D05_ARCO":         ["B", "E", "F", "J"],
+    "D06_MOTOR":        ["A", "E", "G", "I"],
+    "D07_RITMO":        ["B", "D", "G"],
+    "D08_ANALOGIA":     ["A", "C", "K", "L"],
+    "D09_TEMPORAL":     [],
+    "D10_STAKES":       [],
+    "D11_PROVA":        [],
+    "D12_TECNICA":      [],
+    "D13_FECHAMENTO":   [],
+    "D14_DISPOSITIVO":  []
+  },
+
+  "anti_repeticao": {
+    "_doc": "Camadas que NUNCA podem repetir vs histórico do canal. Ordem de prioridade.",
+    "obrigatorias": ["D05_ARCO", "D03_ARQUITETURA", "D01_HOOK"],
+    "janela_max_distance": 10
+  }
+}

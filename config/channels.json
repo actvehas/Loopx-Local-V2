@@ -1,0 +1,97 @@
+{
+  "_doc": "Configuração por canal. Cada canal define o mix visual e personagem fixo.",
+  "E": {
+    "name": "Confesiones de las Abuelas",
+    "mix": {
+      "video_percent": 70,
+      "image_percent": 30
+    },
+    "fixed_persona": false,
+    "notes": "Mulher diferente em cada episódio. Urbano."
+  },
+  "F": {
+    "name": "Abuela Recuerda",
+    "mix": {
+      "video_percent": 60,
+      "image_percent": 40
+    },
+    "fixed_persona": true,
+    "persona_description": "A 70 year old indigenous Mexican woman, silver-gray hair in two long braids, deep brown weathered skin, dark brown eyes, short sturdy build, traditional rebozo shawl in dark blue with geometric patterns, long cotton skirt, leather huaraches",
+    "notes": "MESMA abuela em todos os episódios. Rural."
+  },
+  "G": {
+    "name": "Condemned by History",
+    "mix": {
+      "video_percent": 40,
+      "image_percent": 60
+    },
+    "fixed_persona": false,
+    "language": "en",
+    "voice_prefix": "G-male-en",
+    "style": "Cinematic Realism ancient historical dark atmospheric tones",
+    "gerente": "gerenteG",
+    "notes": "English channel. 3rd person documentary. Male narrator. Multi-civilization ancient history."
+  },
+  "H": {
+    "name": "The Old World Reset",
+    "mix": {
+      "video_percent": 30,
+      "image_percent": 70
+    },
+    "fixed_persona": false,
+    "language": "en",
+    "voice_prefix": "H-male-en",
+    "style": "Cinematic Realism dark atmospheric photography giant white year text overlay",
+    "gerente": "gerenteH",
+    "notes": "English channel. Focus on Tartaria, Mudflood vs Financial Systems (1913 Income Tax, Birth Certificates)."
+  },
+  "I": {
+    "name": "Fe al Descubierto",
+    "mix": {
+      "video_percent": 30,
+      "image_percent": 70
+    },
+    "fixed_persona": false,
+    "language": "es",
+    "voice_prefix": "I-male-es",
+    "style": "Hand-drawn Pencil Sketch Animation, Faith Unmasked white-headed stick-figure on cream beige paper, expressive eyebrows, selective color accent per character (mostarda/azul-poeira/verde-oliva/burgundy), parallel pencil hatching ground, no artist hand visible",
+    "gerente": "gerenteFe",
+    "notes": "Spanish LatAm channel. Biblical truth/warning lists with double scriptural proof. Male authoritative-empathetic narrator (fixed voice I-male-es-01). Audience 50+ Latina women. Visual style locked: Faith Unmasked pencil sketch stick-figure (NOT photorealistic). Reference: Projetos/Meus Canais/Fe al Descubierto/Referencias/REFERENCIA DE IMAGENS/"
+  },
+  "_template": {
+    "name": "Nome do Canal",
+    "mix": {
+      "video_percent": 70,
+      "image_percent": 30
+    },
+    "fixed_persona": false,
+    "persona_description": "",
+    "notes": ""
+  },
+  "J": {
+    "name": "El Pan Nuestro",
+    "mix": {
+      "video_percent": 30,
+      "image_percent": 70
+    },
+    "fixed_persona": false,
+    "language": "es",
+    "voice_prefix": "J-male-es",
+    "style": "Photorealistic cinematic biblical food devotional warm period-accurate",
+    "gerente": "gerenteJ",
+    "notes": "Spanish channel. Comida + Biblia. Fixed narrator J-male-es-01 (Diego ElevenLabs clone). Inspired by @LostAmericanMemories listicle structure."
+  },
+  "K": {
+    "name": "Glitch",
+    "mix": {
+      "video_percent": 0,
+      "image_percent": 100
+    },
+    "fixed_persona": false,
+    "language": "es",
+    "voice_prefix": "K-male-es",
+    "style": "Hand-drawn doodle illustration, irregular trembling black brush stroke outline, flat solid colors no gradient no shading, white or single solid color background, brown horizontal ground line, simple stick figures with round heads expressive eyebrows, amateur sketchy notebook style inspired by Zenn YouTube channel, 3 colors maximum per frame, red as accent only for negation/emphasis",
+    "gerente": "gerenteK",
+    "notes": "Spanish neutral LATAM channel. Curiosidades / experimentos mentales / lado oscuro / efectos psicológicos. Long-form 8-12min. Fixed narrator K-male-es-01 (Joao clone). Voice tone: amigo no bar, conversacional, energia média-alta. Inspired by Zenn @Zenn0009 in STYLE only — see Voz-do-Canal.md in Obsidian for anti-copy rules."
+  }
+}

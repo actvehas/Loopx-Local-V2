@@ -1,0 +1,33 @@
+{
+  "_doc": "Histórico de combos Forge usados. Atualizado automaticamente por forge-pick.js após cada EP.",
+  "canal": "X",
+  "episodios": {
+    "_exemplo": {
+      "ep": 1,
+      "titulo": "...",
+      "data": "2026-05-09",
+      "duracao_bucket": "longo",
+      "combo": {
+        "D01_HOOK": "C",
+        "D02_PERSPECTIVA": "A",
+        "D03_ARQUITETURA": "H",
+        "D04_TOM": "I",
+        "D05_ARCO": "F",
+        "D06_MOTOR": "E",
+        "D07_RITMO": "B",
+        "D08_ANALOGIA": "C",
+        "D09_TEMPORAL": "A",
+        "D10_STAKES": "A",
+        "D11_PROVA": "A",
+        "D12_TECNICA": "A",
+        "D13_FECHAMENTO": "A",
+        "D14_DISPOSITIVO": "A"
+      },
+      "filtros": {
+        "tom": "nostalgia",
+        "intensidade": "conversa",
+        "objetivo": "retencao"
+      }
+    }
+  }
+}

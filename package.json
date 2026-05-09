@@ -1,0 +1,14 @@
+{
+  "name": "loopx-local",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Pipeline de produção de vídeos YouTube",
+  "scripts": {
+    "veo3": "node scripts/veo3-generator.js"
+  },
+  "dependencies": {
+    "csv-parse": "^6.2.1",
+    "googleapis": "^171.4.0",
+    "puppeteer-core": "^24.42.0"
+  }
+}

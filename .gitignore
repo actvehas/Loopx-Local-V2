@@ -1,0 +1,46 @@
+# Node
+node_modules/
+package-lock.json
+npm-debug.log*
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Logs
+*.log
+logs/
+
+# Episode media (não vai pro git)
+remotion-fe/public/ep*
+remotion-fe/public/shorts*
+remotion-fe/public/audio.wav
+remotion-fe/public/video.mp4
+test-flow-out/
+**/Cenas/
+**/audio.wav
+**/audio.srt
+**/final.mp4
+**/raw.mp4
+
+# Música/assets pesados
+assets/music/
+assets/*.mp4
+
+# Secrets
+.env
+.env.local
+config/secrets.json
+*.pem
+*.key

@@ -1,0 +1,50 @@
+{
+  "E-female-es-01": {
+    "audio_path": "config/voices/E-female-es-01.wav",
+    "ref_text": "ninguna fuerza puede detener. Esta es su historia y merece ser escuchada."
+  },
+  "E-female-es-02": {
+    "audio_path": "config/voices/E-female-es-02.wav",
+    "ref_text": "para siempre, porque cuando alguien decide hablar con el corazón abierto, las palabras tienen un..."
+  },
+  "E-female-es-03": {
+    "audio_path": "config/voices/E-female-es-03.wav",
+    "ref_text": "salen a la luz. Detrás de cada puerta cerrada, existe un mundo de emociones de alegría."
+  },
+  "E-female-es-04": {
+    "audio_path": "config/voices/E-female-es-04.wav",
+    "ref_text": "porque cuando alguien decide hablar con el corazón abierto, las palabras tienen un poder que..."
+  },
+  "E-female-es-05": {
+    "audio_path": "config/voices/E-female-es-05.wav",
+    "ref_text": "Hay historias que nunca se olvidan. Secretos guardados durante décadas que finalmente salen a la luz."
+  },
+  "E-female-es-06": {
+    "audio_path": "config/voices/E-female-es-06.wav",
+    "ref_text": "ninguna fuerza puede detener. Esta es su historia. Y merece ser escuchada."
+  },
+  "E-female-es-07": {
+    "audio_path": "config/voices/E-female-es-07.wav",
+    "ref_text": "venciosas y dolores profundos que marcaron generaciones enteras. Hoy vamos a des..."
+  },
+  "E-female-es-08": {
+    "audio_path": "config/voices/E-female-es-08.wav",
+    "ref_text": "Hoy vamos a descubrir juntos esas verdades o cultas, esos momentos que cambiaron vidas para así."
+  },
+  "G-male-en-01": {
+    "audio_path": "config/voices/G-male-en-01.wav",
+    "ref_text": "The Roman army campaigned across three continents for over 500 years, and in all that time, its soldiers marched through deserts, forests, and frozen mountains, building a fortified camp every single night before they slept. Because the system they created was so precise, so disciplined, and so brutally enforced, that no guard dared close his eyes. Knowing that his own brothers would be the ones to end his life if he failed."
+  },
+  "I-male-es-01": {
+    "audio_path": "config/voices/I-male-es-01-short.wav",
+    "ref_text": "Un buen cristiano siempre ayuda, siempre dice que sí, siempre está disponible para los demás. Eso te enseñaron toda la vida, eso te repitieron en la iglesia, en tu casa, en tu familia, pero"
+  },
+  "J-male-es-01": {
+    "audio_path": "config/voices/J-male-es-01-short.wav",
+    "ref_text": "En 1986, el nivel del mar de Galilea bajó como no lo había hecho en siglos. La sequía expuso el fondo de barro negro y dos pescadores, Moshe y Yuval Lufan, vieron algo asomando entre el lodo."
+  },
+  "K-male-es-01": {
+    "audio_path": "config/voices/K-male-es-01-short.wav",
+    "ref_text": "Estas olas gigantes hubieran atravesado el mar a la velocidad de un jet, despedazando el fondo del mar, desplazando toneladas de sedimento. Cuando esos escombros se depositaron en lo que hoy es la cuenca del río Brasos,"
+  }
+}
