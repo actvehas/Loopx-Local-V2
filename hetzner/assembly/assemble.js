@@ -44,6 +44,57 @@ function loadChannelConfig(canal) {
   }
 }
 
+// Load cena texts from cenas-minutagem.md for typewriter gap fill
+function loadCenasText(jobDir) {
+  const f = path.join(jobDir, "cenas-minutagem.md");
+  const out = {};
+  if (!fs.existsSync(f)) return out;
+  const lines = fs.readFileSync(f, "utf8").split("\n");
+  for (const line of lines) {
+    const m = line.match(/Cena\s+(\d+)\s+\([\d:]+-[\dfim:]+\):\s*"([^"]+)"/);
+    if (m) out[parseInt(m[1])] = m[2].trim();
+  }
+  return out;
+}
+
+// Wrap text to N chars per line (word-boundary aware)
+function wrapText(text, maxChars) {
+  if (text.length <= maxChars) return text;
+  const words = text.split(" ");
+  const lines = [];
+  let cur = "";
+  for (const w of words) {
+    if (!cur) cur = w;
+    else if (cur.length + 1 + w.length <= maxChars) cur += " " + w;
+    else { lines.push(cur); cur = w; }
+  }
+  if (cur) lines.push(cur);
+  return lines.join("\n");
+}
+
+// Condense narration: pega primeira frase, max 8-10 palavras
+function condenseText(text) {
+  if (!text) return "";
+  let t = text.replace(/[\\:'"]/g, "").toUpperCase().trim();
+  // first clause
+  const firstClause = t.split(/[.,;]/)[0].trim();
+  const words = firstClause.split(/\s+/);
+  if (words.length > 10) return words.slice(0, 8).join(" ") + "...";
+  return firstClause;
+}
+
+// Find first available monospace font on Linux
+function findFont() {
+  const candidates = [
+    "/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+    "/usr/share/fonts/truetype/liberation/LiberationMono-Bold.ttf",
+    "/usr/share/fonts/TTF/DejaVuSansMono-Bold.ttf",
+  ];
+  for (const f of candidates) if (fs.existsSync(f)) return f;
+  return null;
+}
+
 // Args
 const CANAL = process.argv[2];
 const NUM = process.argv[3];
@@ -104,6 +155,10 @@ async function main() {
   // Get audio duration
   const audioDuration = await getMediaDuration(AUDIO_PATH);
   log(`Áudio: ${audioDuration.toFixed(1)}s (${(audioDuration / 60).toFixed(1)} min)`);
+
+  // Load cena texts pra typewriter gap (cenas curtas)
+  const cenasText = loadCenasText(JOB_DIR);
+  log(`Cenas-minutagem text loaded: ${Object.keys(cenasText).length} cenas`);
 
   // Find all scene files (mp4 videos + jpg/png images) sorted by scene number
   const SUPPORTED_EXT = [".mp4", ".jpg", ".jpeg", ".png", ".webp"];
@@ -188,16 +243,44 @@ async function main() {
           120000
         );
       } else {
-        // Video too short: reverse-bounce to fill duration
-        const scale = "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1";
-        const bounceFilter = `[0:v]${scale}[scaled];[scaled]split[fwd][rev];[rev]reverse[reversed];[fwd][reversed]concat=n=2:v=1:a=0[bounced]`;
-        const loops = Math.ceil(targetDurationPerScene / Math.max(sceneDur * 2, 0.1));
+        // Video too short: usar Veo nativo + concat com typewriter gap (texto narrado caixa-alta)
+        // Em vez de bounce-reverse (que parece rewind/repetição), preenche o gap com card de texto.
+        const sceneNum = i + 1;
+        const cenaText = condenseText(cenasText[sceneNum] || "");
+        const gapDur = (targetDurationPerScene - sceneDur).toFixed(3);
+        const veoPart = path.join(normalizedDir, `veo_${String(sceneNum).padStart(4, "0")}.mp4`);
+        const gapPart = path.join(normalizedDir, `gap_${String(sceneNum).padStart(4, "0")}.mp4`);
+        const concatList = path.join(normalizedDir, `concat_${String(sceneNum).padStart(4, "0")}.txt`);
+
+        // 1) Veo nativo (8s)
         await run(
-          `${FFMPEG} -y -stream_loop ${loops} -i "${input}" ` +
-          `-filter_complex "${bounceFilter}" -map "[bounced]" ` +
-          `-t ${targetDurationPerScene.toFixed(3)} ` +
-          `-r 30 -c:v libx264 -preset fast -crf ${CRF} -an "${output}"`,
-          120000
+          `${FFMPEG} -y -i "${input}" -t ${sceneDur.toFixed(3)} ` +
+          `-vf "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1" ` +
+          `-r 30 -c:v libx264 -preset fast -crf ${CRF} -an "${veoPart}"`,
+          90000
+        );
+
+        // 2) Typewriter gap (cor preta + texto caixa-alta centralizado, fade-in suave)
+        const fontPath = findFont();
+        const wrapped = wrapText(cenaText, 26);
+        // ffmpeg drawtext: escape colons/commas in text, use textfile if complex
+        const textFile = path.join(normalizedDir, `txt_${String(sceneNum).padStart(4, "0")}.txt`);
+        fs.writeFileSync(textFile, wrapped);
+        const fontDirective = fontPath ? `fontfile=${fontPath}:` : "";
+        const drawtext = `drawtext=${fontDirective}textfile=${textFile}:fontcolor=white:fontsize=72:line_spacing=24:x=(w-text_w)/2:y=(h-text_h)/2:alpha='if(lt(t,0.4),t/0.4,1)'`;
+        await run(
+          `${FFMPEG} -y -f lavfi -i "color=c=black:s=1920x1080:r=30:d=${gapDur}" ` +
+          `-vf "${drawtext}" ` +
+          `-c:v libx264 -preset fast -crf ${CRF} -pix_fmt yuv420p -an "${gapPart}"`,
+          60000
+        );
+
+        // 3) Concat veo + gap
+        fs.writeFileSync(concatList, `file '${veoPart}'\nfile '${gapPart}'\n`);
+        await run(
+          `${FFMPEG} -y -f concat -safe 0 -i "${concatList}" ` +
+          `-c:v libx264 -preset fast -crf ${CRF} -pix_fmt yuv420p -an "${output}"`,
+          60000
         );
       }
       normalizedFiles.push(output);

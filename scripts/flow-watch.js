@@ -66,14 +66,21 @@ function existingScenes(dir) {
 }
 
 // Download direto via Node http(s) — bypassa page.evaluate (3-5x mais rápido)
-function downloadUrl(url) {
+// cookieHeader: string "name=value; name2=value2" pra autenticar no Flow
+function downloadUrl(url, cookieHeader = '') {
   return new Promise((resolve, reject) => {
     const lib = url.startsWith('https:') ? https : http;
-    const req = lib.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' } }, (res) => {
+    const headers = {
+      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36',
+      'Accept': '*/*',
+      'Referer': 'https://labs.google/',
+    };
+    if (cookieHeader) headers['Cookie'] = cookieHeader;
+    const req = lib.get(url, { headers }, (res) => {
       // segue redirect manual (Flow usa 302 frequentemente)
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         res.resume();
-        return downloadUrl(res.headers.location).then(resolve, reject);
+        return downloadUrl(res.headers.location, cookieHeader).then(resolve, reject);
       }
       if (res.statusCode !== 200) {
         res.resume();
@@ -124,12 +131,22 @@ async function main() {
   await page.bringToFront();
   console.log(`✅ Conectado: ${page.url().substring(0,80)}`);
 
-  // CDP: desabilita throttling em background pra observer não congelar
+  // Cookies de sessão da tab Flow (necessário pro https.get autenticar — Flow retorna 401 sem)
+  const cookies = await page.cookies('https://labs.google');
+  const cookieHeader = cookies.map(c => `${c.name}=${c.value}`).join('; ');
+  console.log(`🍪 ${cookies.length} cookies extraídos`);
+
+  // CDP: habilita Runtime (necessário pra page.on('console') em tabs connect()'d),
+  // desabilita throttling em background.
+  let cdp;
   try {
-    const cdp = await page.target().createCDPSession();
-    await cdp.send('Emulation.setFocusEmulationEnabled', { enabled: true });
+    cdp = await page.target().createCDPSession();
+    await cdp.send('Runtime.enable').catch(() => {});
+    await cdp.send('Emulation.setFocusEmulationEnabled', { enabled: true }).catch(() => {});
     await cdp.send('Page.setWebLifecycleState', { state: 'active' }).catch(() => {});
-  } catch (_) {}
+  } catch (e) {
+    console.error('CDP setup falhou:', e.message);
+  }
 
   // Stats
   const t0 = Date.now();
@@ -138,13 +155,15 @@ async function main() {
   const inflight = new Set();
   const queue = makeQueue(cfg.concurrency);
 
-  // Bridge page → Node
-  await page.exposeFunction('__onMediaReady', async (sceneNum, url, type) => {
+  // Bridge page → Node via console.log + Runtime.consoleAPICalled (mais robusto que exposeFunction)
+  const PREFIX = '[FLOW-WATCH-EVENT]';
+  const handleEvent = async (sceneNum, url, type) => {
+    console.log(`[bridge] recv Cena ${sceneNum} ${type} | pending=${pending.has(sceneNum)} inflight=${inflight.has(sceneNum)}`);
     if (!pending.has(sceneNum) || inflight.has(sceneNum)) return;
     inflight.add(sceneNum);
     queue(async () => {
       try {
-        const { buffer, contentType } = await downloadUrl(url);
+        const { buffer, contentType } = await downloadUrl(url, cookieHeader);
         const isVideo = contentType.includes('video') || contentType.includes('mp4');
         const ext = isVideo ? '.mp4' : '.jpg';
         const baseName = `(Cena_${String(sceneNum).padStart(3,'0')})[Cinematic_Realism]`;
@@ -163,55 +182,96 @@ async function main() {
         console.error(`❌ Cena ${sceneNum}: ${e.message}`);
       }
     });
-  });
+  };
+
+  // Polling drena window.__flowEvents a cada 1s (substitui bridge console)
+  const drainEvents = async () => {
+    try {
+      const events = await page.evaluate(() => {
+        const out = window.__flowEvents || [];
+        window.__flowEvents = [];
+        return out;
+      });
+      for (const ev of events) {
+        if (ev.kind === 'ready') {
+          console.log(`🔌 observer pronto — scanAll inicial detectou ${ev.count} cena(s)`);
+        } else if (ev.kind === 'media') {
+          handleEvent(ev.sceneNum, ev.url, ev.type);
+        }
+      }
+    } catch (e) {
+      console.log('[drain err]', e.message);
+    }
+  };
+  const drainTimer = setInterval(drainEvents, 1000);
 
   // Injeta observer na página
-  await page.evaluate(() => {
-    if (window.__flowWatchInjected) return;
-    window.__flowWatchInjected = true;
-    const seen = new Set();
+  await page.evaluate((PREFIX) => {
+    // limpa qualquer injeção anterior (Node pode ter reiniciado sem reload da página)
+    if (window.__flowWatchObserver) try { window.__flowWatchObserver.disconnect(); } catch {}
+    if (window.__flowWatchInterval) clearInterval(window.__flowWatchInterval);
+    window.__flowEvents = [];
+    const emit = (payload) => { window.__flowEvents.push(payload); };
+    const seenUrls = new Set();
     const sceneToUrl = new Map();
-    const findSceneNumNear = (node) => {
-      let el = node;
-      for (let i = 0; i < 12 && el; i++, el = el.parentElement) {
-        const m = (el.textContent || '').match(/\(Cena[_ ]?(\d+)\)/i);
-        if (m) return parseInt(m[1]);
+
+    // Acha o "card mãe" que contém texto da cena E mídia.
+    // Texto "(Cena N)" é IRMÃO do <video> no Flow, não ancestral — então subimos
+    // do texto até achar um ancestral que tenha video/img dentro.
+    const findMediaInScope = (textEl) => {
+      let el = textEl;
+      for (let i = 0; i < 15 && el; i++, el = el.parentElement) {
+        const v = el.querySelector?.('video[src]');
+        const i2 = el.querySelector?.('img[src*="getMediaUrlRedirect"]');
+        if ((v && v.src.length > 50) || (i2 && (!i2.naturalWidth || i2.naturalWidth >= 100))) {
+          // achou ancestral que tem media — coleta TODOS os media dentro
+          const vids = [...el.querySelectorAll('video[src]')].filter(x => x.src.length > 50);
+          const imgs = [...el.querySelectorAll('img[src*="getMediaUrlRedirect"]')]
+                          .filter(x => !x.naturalWidth || x.naturalWidth >= 100);
+          return { vids, imgs };
+        }
       }
-      return null;
+      return { vids: [], imgs: [] };
     };
+
     const report = (url, type, sceneNum) => {
-      if (!url || sceneNum == null || seen.has(url)) return;
-      // Se já temos uma URL pra essa cena e a nova é vídeo, prefere vídeo (sobrescreve imagem)
+      if (!url || sceneNum == null || seenUrls.has(url)) return;
       const prev = sceneToUrl.get(sceneNum);
       if (prev && prev.type === 'video' && type !== 'video') return;
-      seen.add(url);
+      seenUrls.add(url);
       sceneToUrl.set(sceneNum, { url, type });
-      window.__onMediaReady(sceneNum, url, type);
+      emit({ kind: 'media', sceneNum, url, type });
     };
-    const scan = (node) => {
-      if (!(node instanceof HTMLElement)) return;
-      const vids = node.matches?.('video[src]') ? [node] : node.querySelectorAll?.('video[src]') || [];
-      for (const v of vids) {
-        if (!v.src || v.src.length < 50) continue;
-        const n = findSceneNumNear(v);
-        report(v.src, 'video', n);
-      }
-      const imgs = node.matches?.('img[src*="getMediaUrlRedirect"]') ? [node] : node.querySelectorAll?.('img[src*="getMediaUrlRedirect"]') || [];
-      for (const img of imgs) {
-        if (img.naturalWidth && img.naturalWidth < 100) continue;
-        const n = findSceneNumNear(img);
-        report(img.src, 'image', n);
+
+    const scanAll = () => {
+      // 1. Acha todos os "leaf" elements que contêm "(Cena N)" no início do texto
+      const nodes = [...document.querySelectorAll('p, span, div')]
+        .filter(el => {
+          if (el.children.length > 8) return false; // pula containers grandes
+          const m = (el.textContent || '').match(/\(Cena[_ ]?(\d+)\)/i);
+          return m;
+        });
+      const seenScenes = new Set();
+      for (const textEl of nodes) {
+        const m = (textEl.textContent || '').match(/\(Cena[_ ]?(\d+)\)/i);
+        if (!m) continue;
+        const sceneNum = parseInt(m[1]);
+        if (seenScenes.has(sceneNum)) continue; // mesma cena pode aparecer em vários elements (header + variantes)
+        seenScenes.add(sceneNum);
+        const { vids, imgs } = findMediaInScope(textEl);
+        // Prefere a 1ª variante (vídeo se houver, senão imagem)
+        if (vids.length > 0) report(vids[0].src, 'video', sceneNum);
+        else if (imgs.length > 0) report(imgs[0].src, 'image', sceneNum);
       }
     };
-    scan(document.body);
-    new MutationObserver((muts) => {
-      for (const m of muts) {
-        m.addedNodes.forEach(scan);
-        if (m.type === 'attributes' && m.target instanceof HTMLElement) scan(m.target);
-      }
-    }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['src'] });
-    console.log('[flow-watch] observer ativo');
-  });
+
+    scanAll();
+    const obs = new MutationObserver(() => scanAll());
+    obs.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['src'] });
+    window.__flowWatchObserver = obs;
+    window.__flowWatchInterval = setInterval(scanAll, 5000);
+    emit({ kind: 'ready', count: sceneToUrl.size });
+  }, PREFIX);
 
   console.log('👀 Observer ativo — esperando cenas (max-idle ' + cfg.maxIdleSec + 's)');
 
@@ -237,6 +297,7 @@ async function main() {
   console.log(`\n════════════════════════════════════════`);
   console.log(`✅ ${downloaded} baixadas | ${failed} falhas | ${pending.size} pendentes | ${elapsed}min`);
   console.log(`📁 ${cfg.outputDir}`);
+  clearInterval(drainTimer);
   await browser.disconnect();
   process.exit(pending.size > 0 ? 2 : 0);
 }

@@ -298,12 +298,22 @@ def main():
             except:
                 pass
 
-        # Whisper → timestamps
+        # Whisper → timestamps (com word_timestamps pra gerar words.json)
         print(f"\n🎯 Whisper → timestamps...")
         try:
             import whisper
             wmodel = whisper.load_model("base")
-            result = wmodel.transcribe(final_path, language=WHISPER_LANG.get(args.canal, "es"))
+            result = wmodel.transcribe(final_path, language=WHISPER_LANG.get(args.canal, "es"), word_timestamps=True)
+
+            # words.json — word-level timestamps pra typewriter/verse overlay em pós
+            words_path = os.path.join(output_dir, "words.json")
+            words_list = []
+            for seg in result["segments"]:
+                for w in seg.get("words", []):
+                    words_list.append({"word": w["word"].strip(), "start": w["start"], "end": w["end"]})
+            with open(words_path, 'w', encoding='utf-8') as f:
+                json.dump(words_list, f, ensure_ascii=False)
+            print(f"✅ Words: {words_path} ({len(words_list)} palavras)")
 
             # SRT
             srt_path = os.path.join(output_dir, "audio.srt")

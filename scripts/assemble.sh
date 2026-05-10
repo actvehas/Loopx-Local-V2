@@ -45,6 +45,13 @@ fi
 CENAS_COUNT=$(ls "$EPISODE_DIR/Cenas/"*.mp4 2>/dev/null | wc -l)
 echo "Cenas encontradas: $CENAS_COUNT"
 
+# Auto-fill cenas faltantes com typewriter fullscreen (texto narrado caixa-alta)
+echo ""
+echo "PASSO 0: Fill-missing-cenas (typewriter fullscreen pra gaps)..."
+python3 "$(dirname "$0")/fill-missing-cenas.py" "$CANAL" "$NUM" || echo "[AVISO] fill-missing-cenas falhou (continuando)"
+CENAS_COUNT=$(ls "$EPISODE_DIR/Cenas/"*.mp4 2>/dev/null | wc -l)
+echo "Cenas após fill: $CENAS_COUNT"
+
 # Create remote dir
 echo ""
 echo "PASSO 1: Criando pasta remota..."
@@ -52,8 +59,8 @@ ssh $HETZNER "mkdir -p $REMOTE_DIR/Cenas"
 
 # Upload assets
 echo ""
-echo "PASSO 2: Enviando audio + SRT..."
-rsync -avz --progress "$EPISODE_DIR/audio.wav" "$EPISODE_DIR/audio.srt" "$HETZNER:$REMOTE_DIR/"
+echo "PASSO 2: Enviando audio + SRT + cenas-minutagem..."
+rsync -avz --progress "$EPISODE_DIR/audio.wav" "$EPISODE_DIR/audio.srt" "$EPISODE_DIR/cenas-minutagem.md" "$HETZNER:$REMOTE_DIR/"
 
 echo ""
 echo "PASSO 3: Enviando Cenas/ ($CENAS_COUNT videos)..."
