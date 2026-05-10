@@ -28,6 +28,8 @@ remotion-fe/public/shorts*
 remotion-fe/public/audio.wav
 remotion-fe/public/video.mp4
 test-flow-out/
+watch-test-out/
+prompts-test-flow.md
 **/Cenas/
 **/audio.wav
 **/audio.srt
