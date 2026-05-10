@@ -9,6 +9,6 @@
   "dependencies": {
     "csv-parse": "^6.2.1",
     "googleapis": "^171.4.0",
-    "puppeteer-core": "^24.42.0"
+    "puppeteer-core": "^24.43.0"
   }
 }

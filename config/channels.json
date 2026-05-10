@@ -56,7 +56,10 @@
     "voice_prefix": "I-male-es",
     "style": "Hand-drawn Pencil Sketch Animation, Faith Unmasked white-headed stick-figure on cream beige paper, expressive eyebrows, selective color accent per character (mostarda/azul-poeira/verde-oliva/burgundy), parallel pencil hatching ground, no artist hand visible",
     "gerente": "gerenteFe",
-    "notes": "Spanish LatAm channel. Biblical truth/warning lists with double scriptural proof. Male authoritative-empathetic narrator (fixed voice I-male-es-01). Audience 50+ Latina women. Visual style locked: Faith Unmasked pencil sketch stick-figure (NOT photorealistic). Reference: Projetos/Meus Canais/Fe al Descubierto/Referencias/REFERENCIA DE IMAGENS/"
+    "subtitles": false,
+    "music": "contemplative-piano.mp3",
+    "music_volume": 0.28,
+    "notes": "Spanish LatAm channel. Biblical truth/warning lists with double scriptural proof. Male authoritative-empathetic narrator (fixed voice I-male-es-01). Audience 50+ Latina women. Visual style locked: Faith Unmasked pencil sketch stick-figure (NOT photorealistic). Reference: Projetos/Meus Canais/Fe al Descubierto/Referencias/REFERENCIA DE IMAGENS/. Subtitles=false (typewriter overlay aplicado em pós). Music ~-11dB sob narração."
   },
   "_template": {
     "name": "Nome do Canal",

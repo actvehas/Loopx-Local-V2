@@ -13,6 +13,7 @@ Assets vivem no Obsidian vault. Montagem pesada roda na Hetzner.
 - **Pipeline Status Dataview** — `Pipeline-Status.md` no vault renderiza board ao vivo do estado de todos os EPs em todos os canais (`docs/PIPELINE-STATUS.md`).
 - **Auto-marking de `Titulos.md`** — `[ ]` → `[⏳]` → `[x]` atualizado por `update-titulos.sh` em cada transição de fase.
 - **Buckets de duração controlados** — `curto/medio/longo/maraton` mapeados a palavras→cenas→custo Flow.
+- **Download tempo-real (`flow-watch.js`)** — MutationObserver injetado na tab + bridge page→Node + queue paralela (concurrency 6). 1ª cena baixa enquanto a 50ª ainda gera. ~3-5x mais rápido que o `flow-download.js` clássico.
 - **Bugs Fase 4 fixados** — `Meta+A` cross-platform, tRPC log de schema, scroll dedup por URL, `stillMissing` correto.
 - **Estrutura padronizada** — código no repo, conteúdo no Obsidian, jobs no Hetzner (`docs/STRUCTURE.md`).
 
@@ -160,19 +161,19 @@ Geração dos vídeos de cada cena usando Google Labs Flow via Puppeteer (autom�
 5. Retry automático de prompts que falharem
 6. Pula cenas que já existem na pasta
 
-**Comando:**
+**Comando V2 (recomendado — download tempo real):**
 ```bash
-# Todas as cenas
-node scripts/veo3-generator.js prompts-veo3.md --output ./Cenas
+# Terminal 1 — submete prompts
+node scripts/flow-submit.js prompts-veo3.md --output ./Cenas --port 9222 --mode video
 
-# Batch específico (cenas 1-100)
-node scripts/veo3-generator.js prompts-veo3.md --start 1 --end 100 --output ./Cenas
+# Terminal 2 (paralelo) — observer baixa cada cena assim que aparece
+node scripts/flow-watch.js prompts-veo3.md --output ./Cenas --port 9222 --concurrency 6
+```
 
-# Dry run (mostra prompts sem gerar)
-node scripts/veo3-generator.js prompts-veo3.md --dry-run
-
-# Batch size customizado
-node scripts/veo3-generator.js prompts-veo3.md --batch 8
+**Modo clássico (fallback, batch no fim):**
+```bash
+node scripts/flow-submit.js prompts-veo3.md --output ./Cenas
+node scripts/flow-download.js prompts-veo3.md --output ./Cenas
 ```
 
 **Output:** `Cenas/*.mp4` (~600 vídeos de ~6-8s cada)

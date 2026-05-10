@@ -24,12 +24,25 @@ const execAsync = promisify(exec);
 
 // Config
 const JOBS_DIR = "/root/loopx-local/jobs";
+const ASSETS_DIR = "/root/loopx-local/assets";
+const CHANNELS_JSON = "/root/loopx-local/config/channels.json";
 const FFMPEG = "ffmpeg";
 const FFPROBE = "ffprobe";
 const CROSSFADE = 0.6;
 const CRF = 18;
 const SILENCE_THRESHOLD = "-40dB";
 const SILENCE_MIN_DURATION = 0.5;
+
+// Load per-channel config (subtitles toggle, music file, music volume)
+function loadChannelConfig(canal) {
+  try {
+    const raw = fs.readFileSync(CHANNELS_JSON, "utf8");
+    const all = JSON.parse(raw);
+    return all[canal] || {};
+  } catch {
+    return {};
+  }
+}
 
 // Args
 const CANAL = process.argv[2];
@@ -221,33 +234,54 @@ async function main() {
   const videoDuration = await getMediaDuration(videoOnly);
   log(`Vídeo concatenado: ${videoDuration.toFixed(1)}s`);
 
-  // Step 4: Merge video + audio + subtitles
-  log("PASSO 4: Montagem final (vídeo + áudio + legendas)...");
+  // Step 4: Merge video + audio (+ optional subtitles + optional bg music)
+  // Per-channel config: subtitles (default true), music (filename in assets/music/), music_volume (default 0.10)
+  const chCfg = loadChannelConfig(CANAL);
+  const wantSubs = chCfg.subtitles !== false; // default true unless explicitly disabled
+  const musicFile = chCfg.music ? path.join(ASSETS_DIR, "music", chCfg.music) : null;
+  const musicVol = typeof chCfg.music_volume === "number" ? chCfg.music_volume : 0.10;
+  const hasMusic = musicFile && fs.existsSync(musicFile);
 
-  // Escape SRT path for FFmpeg filter
+  log(`PASSO 4: Montagem final — subs=${wantSubs} | music=${hasMusic ? chCfg.music + ` @ vol ${musicVol}` : "off"}`);
+
+  // Build video filter (subtitles burn-in or null)
   const srtEscaped = SRT_PATH.replace(/'/g, "\\'").replace(/:/g, "\\:");
+  const subsFilter = wantSubs
+    ? `-vf "subtitles='${srtEscaped}':force_style='FontName=Arial,FontSize=22,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=2,Shadow=0,Alignment=2,MarginV=50'"`
+    : "";
+
+  // Build audio mix
+  const narrationDur = await getMediaDuration(audioClean);
+  let audioInputs, audioFilter, audioMap;
+  if (hasMusic) {
+    audioInputs = `-i "${audioClean}" -stream_loop -1 -i "${musicFile}"`;
+    const fadeOutStart = Math.max(0, narrationDur - 4);
+    audioFilter = `-filter_complex "[1:a]volume=1.0[narr];[2:a]volume=${musicVol},afade=t=in:st=0:d=2,afade=t=out:st=${fadeOutStart}:d=4[bg];[narr][bg]amix=inputs=2:duration=first:dropout_transition=0[mix]"`;
+    audioMap = `-map 0:v:0 -map "[mix]"`;
+  } else {
+    audioInputs = `-i "${audioClean}"`;
+    audioFilter = "";
+    audioMap = `-map 0:v:0 -map 1:a:0`;
+  }
+
+  const buildCmd = (withSubs) =>
+    `${FFMPEG} -y -i "${videoOnly}" ${audioInputs} ` +
+    (withSubs ? subsFilter + " " : "") +
+    (audioFilter ? audioFilter + " " : "") +
+    `${audioMap} ` +
+    `-c:v libx264 -preset medium -crf ${CRF} ` +
+    `-c:a aac -b:a 192k ` +
+    `-t ${narrationDur} -movflags +faststart "${OUTPUT_PATH}"`;
 
   try {
-    await run(
-      `${FFMPEG} -y -i "${videoOnly}" -i "${audioClean}" ` +
-      `-vf "subtitles='${srtEscaped}':force_style='FontName=Arial,FontSize=22,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=2,Shadow=0,Alignment=2,MarginV=50'" ` +
-      `-c:v libx264 -preset medium -crf ${CRF} ` +
-      `-c:a aac -b:a 192k ` +
-      `-movflags +faststart ` +
-      `-shortest "${OUTPUT_PATH}"`,
-      1800000 // 30 min timeout
-    );
+    await run(buildCmd(wantSubs), 1800000);
   } catch (e) {
-    // Fallback: try without subtitles
-    log(`AVISO: Legendas falharam, montando sem legendas: ${e.message}`);
-    await run(
-      `${FFMPEG} -y -i "${videoOnly}" -i "${audioClean}" ` +
-      `-c:v libx264 -preset medium -crf ${CRF} ` +
-      `-c:a aac -b:a 192k ` +
-      `-movflags +faststart ` +
-      `-shortest "${OUTPUT_PATH}"`,
-      1800000
-    );
+    if (wantSubs) {
+      log(`AVISO: Legendas falharam, retry sem legendas: ${e.message}`);
+      await run(buildCmd(false), 1800000);
+    } else {
+      throw e;
+    }
   }
 
   // Verify output
