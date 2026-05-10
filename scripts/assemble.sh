@@ -52,6 +52,17 @@ python3 "$(dirname "$0")/fill-missing-cenas.py" "$CANAL" "$NUM" || echo "[AVISO]
 CENAS_COUNT=$(ls "$EPISODE_DIR/Cenas/"*.mp4 2>/dev/null | wc -l)
 echo "Cenas após fill: $CENAS_COUNT"
 
+# HyperFrames: renderiza intro/outro do canal (se edit-style/ existir)
+CHANNEL_NAME=$(python3 -c "import json,sys; print(json.load(open('$(dirname $0)/../config/channels.json')).get('$CANAL',{}).get('name',''))")
+STYLE_DIR="$VAULT/Projetos/Meus Canais/$CHANNEL_NAME/edit-style"
+if [ -d "$STYLE_DIR" ]; then
+    echo ""
+    echo "PASSO 0.5: Renderizando intro/outro HyperFrames (edit-style do canal)..."
+    "$(dirname "$0")/hyperframes-render.sh" "$CANAL" "$NUM" || echo "[AVISO] hyperframes-render falhou (continuando sem intro/outro)"
+else
+    echo "[INFO] Canal $CANAL não tem edit-style/ — pulando overlays HyperFrames"
+fi
+
 # Create remote dir
 echo ""
 echo "PASSO 1: Criando pasta remota..."
@@ -59,12 +70,22 @@ ssh $HETZNER "mkdir -p $REMOTE_DIR/Cenas"
 
 # Upload assets
 echo ""
-echo "PASSO 2: Enviando audio + SRT + cenas-minutagem..."
-rsync -avz --progress "$EPISODE_DIR/audio.wav" "$EPISODE_DIR/audio.srt" "$EPISODE_DIR/cenas-minutagem.md" "$HETZNER:$REMOTE_DIR/"
+echo "PASSO 2: Enviando audio + SRT + cenas-minutagem + words.json..."
+WORDS_OPT=""
+[ -f "$EPISODE_DIR/words.json" ] && WORDS_OPT="$EPISODE_DIR/words.json"
+rsync -avz --progress "$EPISODE_DIR/audio.wav" "$EPISODE_DIR/audio.srt" "$EPISODE_DIR/cenas-minutagem.md" $WORDS_OPT "$HETZNER:$REMOTE_DIR/"
 
 echo ""
 echo "PASSO 3: Enviando Cenas/ ($CENAS_COUNT videos)..."
 rsync -avz --progress "$EPISODE_DIR/Cenas/" "$HETZNER:$REMOTE_DIR/Cenas/"
+
+# Envia overlays HyperFrames se foram gerados
+if [ -d "$EPISODE_DIR/overlays" ] && [ "$(ls -A "$EPISODE_DIR/overlays" 2>/dev/null)" ]; then
+    echo ""
+    echo "PASSO 3.5: Enviando overlays/ HyperFrames..."
+    ssh $HETZNER "mkdir -p $REMOTE_DIR/overlays"
+    rsync -avz --progress "$EPISODE_DIR/overlays/" "$HETZNER:$REMOTE_DIR/overlays/"
+fi
 
 # Trigger assembly
 echo ""

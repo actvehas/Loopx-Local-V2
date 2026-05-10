@@ -1,0 +1,99 @@
+<!doctype html>
+<!--
+  Template: intro.html
+  Variáveis substituídas pelo hyperframes-render.sh:
+    {{PRE}}      ex: FILE Nº 018 · ARCHIVE OPEN
+    {{TITLE}}    ex: CONFESIONES
+    {{SUBTITLE}} ex: stories from another time
+    {{POST}}     ex: RUNTIME 28:42 · 1080P · STEREO
+    {{DURATION}} duração total em segundos (default 4)
+    {{FONTS_LINK}}, {{FG}}, {{FG_DIM}}, {{ACCENT}}, {{BG}}, {{LETTERBOX_H}}
+    {{FONT_TITLE}}, {{FONT_SUB}}, {{FONT_PRE}}
+-->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    {{FONTS_LINK}}
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: {{BG}}; }
+      .letterbox { position: absolute; left: 0; right: 0; height: {{LETTERBOX_H}}px; background: #000; z-index: 50; }
+      .letterbox.top { top: 0; } .letterbox.bottom { bottom: 0; }
+      .grain {
+        position: absolute; inset: 0; z-index: 45; opacity: {{GRAIN_ALPHA}}; mix-blend-mode: overlay;
+        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+      }
+      .card {
+        position: absolute; inset: 0; z-index: 60;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        background: {{BG}}; color: {{FG}};
+      }
+      .pre {
+        font-family: {{FONT_PRE}}, ui-monospace, monospace;
+        font-size: 18px;
+        color: {{FG_DIM}};
+        letter-spacing: 0.4em;
+        margin-bottom: 40px;
+        opacity: 0;
+      }
+      .main {
+        font-family: {{FONT_TITLE}}, serif;
+        font-size: 140px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        opacity: 0;
+      }
+      .rule {
+        width: 0; height: 1px;
+        background: {{FG_DIM}};
+        margin: 36px 0 0 0;
+      }
+      .sub {
+        font-family: {{FONT_SUB}}, serif;
+        font-style: italic;
+        font-size: 36px;
+        margin-top: 28px;
+        color: {{FG_DIM}};
+        letter-spacing: 0.3em;
+        text-transform: uppercase;
+        opacity: 0;
+      }
+      .post {
+        position: absolute; bottom: 130px;
+        font-family: {{FONT_PRE}}, monospace;
+        font-size: 16px;
+        color: {{FG_DIM}};
+        letter-spacing: 0.4em;
+        opacity: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="{{DURATION}}" data-width="1920" data-height="1080">
+      <div class="letterbox top"></div>
+      <div class="letterbox bottom"></div>
+      <div class="grain"></div>
+      <div id="card" class="clip card" data-start="0" data-duration="{{DURATION}}" data-track-index="9">
+        <div class="pre" id="pre">{{PRE}}</div>
+        <div class="main" id="main">{{TITLE}}</div>
+        <div class="rule" id="rule"></div>
+        <div class="sub" id="sub">{{SUBTITLE}}</div>
+        <div class="post" id="post">{{POST}}</div>
+      </div>
+    </div>
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+      const D = {{DURATION}};
+      tl.to("#pre",  { opacity: 1, duration: 0.6, ease: "power2.out" }, 0.2)
+        .to("#main", { opacity: 1, duration: 0.9, ease: "power2.out" }, 0.7)
+        .to("#rule", { width: {{RULE_WIDTH}}, duration: 0.7, ease: "power2.out" }, 1.3)
+        .to("#sub",  { opacity: 1, duration: 0.6 }, 1.6)
+        .to("#post", { opacity: 1, duration: 0.5 }, 2.0)
+        .to("#card", { opacity: 0, duration: 0.5 }, D - 0.5);
+      window.__timelines["main"] = tl;
+    </script>
+  </body>
+</html>

@@ -14,6 +14,7 @@ Assets vivem no Obsidian vault. Montagem pesada roda na Hetzner.
 - **Auto-marking de `Titulos.md`** — `[ ]` → `[⏳]` → `[x]` atualizado por `update-titulos.sh` em cada transição de fase.
 - **Buckets de duração controlados** — `curto/medio/longo/maraton` mapeados a palavras→cenas→custo Flow.
 - **Download tempo-real (`flow-watch.js`)** — MutationObserver injetado na tab + bridge page→Node + queue paralela (concurrency 6). 1ª cena baixa enquanto a 50ª ainda gera. ~3-5x mais rápido que o `flow-download.js` clássico.
+- **HyperFrames integrado (`scripts/hyperframes-render.sh`)** — cada canal tem o próprio `edit-style/` em Obsidian (templates HTML + tokens visuais). `assemble.sh` renderiza intro/outro do canal antes do rsync pra Hetzner. Identidade visual nunca cruza canais. Doc: `docs/EDIT-STYLE.md`.
 - **Bugs Fase 4 fixados** — `Meta+A` cross-platform, tRPC log de schema, scroll dedup por URL, `stillMissing` correto.
 - **Estrutura padronizada** — código no repo, conteúdo no Obsidian, jobs no Hetzner (`docs/STRUCTURE.md`).
 

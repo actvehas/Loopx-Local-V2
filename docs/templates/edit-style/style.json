@@ -1,0 +1,78 @@
+{
+  "_doc": "Identidade visual do canal — usado por todos os templates HyperFrames. Copia pra Obsidian/Projetos/Meus Canais/{Canal}/edit-style/style.json e edita.",
+  "canal": "X",
+  "nome": "Nome do Canal",
+
+  "fonts": {
+    "verb":    "Playfair Display",
+    "context": "Cormorant Garamond",
+    "stamp":   "JetBrains Mono",
+    "title":   "Playfair Display"
+  },
+
+  "palette": {
+    "fg":     "#f3e9d4",
+    "fg_dim": "rgba(243,233,212,0.55)",
+    "accent": "#c4a557",
+    "bg":     "#000000"
+  },
+
+  "decorations": {
+    "letterbox":      true,
+    "letterbox_h":    145,
+    "vignette":       true,
+    "grain":          true,
+    "grain_alpha":    0.12,
+    "aspect_ratio":   "2.35:1"
+  },
+
+  "overlays_enabled": {
+    "intro":     true,
+    "outro":     true,
+    "chapters":  false,
+    "stamps":    false,
+    "verbs":     false,
+    "counter":   false,
+    "footnotes": false,
+    "coords":    false
+  },
+
+  "intro": {
+    "duration":     4,
+    "pre":          "FILE Nº {ep} · ARCHIVE OPEN",
+    "title":        "{CHANNEL_TITLE}",
+    "subtitle":     "{tagline}",
+    "post":         "RUNTIME {duration} · 1080P · STEREO",
+    "rule_width":   320
+  },
+
+  "outro": {
+    "duration":   3,
+    "quote":      "{quote}",
+    "attribution":"{quote_author}",
+    "credits": [
+      "@{handle}",
+      "{year}"
+    ]
+  },
+
+  "verb_style": {
+    "size_main":    220,
+    "size_pronoun": 140,
+    "letter_spacing_idle":  "0.1em",
+    "letter_spacing_final": "-0.02em",
+    "glow":         "0 0 80px rgba(243,233,212,0.18)"
+  },
+
+  "stamp_style": {
+    "size":         18,
+    "color":        "rgba(243,233,212,0.55)",
+    "letter_spacing": "0.15em"
+  },
+
+  "transitions": {
+    "fade_in_ms":   800,
+    "fade_out_ms":  600,
+    "verb_reveal_ms": 1200
+  }
+}

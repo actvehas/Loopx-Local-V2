@@ -1,0 +1,107 @@
+<!doctype html>
+<!--
+  Template: chapter-verb.html — overlay opcional pra um bloco do roteiro
+  Renderizado COM FUNDO PRETO. Pipeline FFmpeg keya o preto via blend (multiply/screen)
+  ou usa colorkey 0x000000 ao compor sobre as cenas. Ajuste no assemble.sh.
+
+  Variáveis substituídas pelo hyperframes-render.sh:
+    {{CHAPTER}}    ex: I · THE WORD
+    {{CONTEXT}}    ex: A man, alone, leaves a sentence
+    {{PRONOUN}}    ex: HE              (vazio = oculto)
+    {{VERB}}       ex: WROTE
+    {{STAMP_TL}}   ex: 04:00 · MADRID  (vazio = oculto)
+    {{STAMP_TR}}   ex: 40°25′N         (vazio = oculto)
+    {{ARCHIVE}}    ex: ARCHIVE Nº 047-A (vazio = oculto)
+    {{COUNTER}}    ex: 001 / 005       (vazio = oculto)
+    {{DURATION}}   duração do overlay (default 6)
+    + tokens de paleta/fontes do style.json
+-->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    {{FONTS_LINK}}
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: {{BG}}; }
+      .verb {
+        font-family: {{FONT_TITLE}}, serif;
+        font-weight: 900; font-style: italic;
+        line-height: 1; letter-spacing: -0.02em;
+        color: {{FG}};
+        text-shadow: 0 4px 30px rgba(0,0,0,0.85), {{VERB_GLOW}};
+        text-transform: uppercase;
+        position: absolute; white-space: nowrap;
+        opacity: 0;
+      }
+      .verb.center { left: 50%; bottom: 240px; transform: translateX(-50%); font-size: {{VERB_SIZE}}px; }
+      .verb.pronoun { left: 200px; bottom: 320px; font-size: {{VERB_PRONOUN_SIZE}}px; }
+      .context {
+        font-family: {{FONT_SUB}}, serif;
+        font-weight: 300; font-style: italic;
+        font-size: 38px;
+        color: {{FG_DIM}};
+        letter-spacing: 0.18em; text-transform: uppercase;
+        position: absolute; left: 50%; bottom: 175px;
+        transform: translateX(-50%);
+        text-align: center; opacity: 0; white-space: nowrap;
+      }
+      .chapter {
+        font-family: {{FONT_SUB}}, serif;
+        font-size: 28px;
+        color: {{FG_DIM}};
+        letter-spacing: 0.4em;
+        position: absolute; top: 180px; left: 50%;
+        transform: translateX(-50%);
+        opacity: 0; white-space: nowrap;
+      }
+      .stamp {
+        font-family: {{FONT_PRE}}, ui-monospace, monospace;
+        font-size: 18px;
+        color: {{FG_DIM}};
+        letter-spacing: 0.15em; text-transform: uppercase;
+        position: absolute; opacity: 0; white-space: pre;
+      }
+      .stamp.tl { top: 175px; left: 200px; }
+      .stamp.tr { top: 175px; right: 200px; text-align: right; }
+      .stamp.br { bottom: 175px; right: 200px; text-align: right; }
+      .counter {
+        font-family: {{FONT_PRE}}, monospace;
+        font-size: 22px;
+        color: {{FG_DIM}};
+        letter-spacing: 0.2em;
+        position: absolute; bottom: 180px; left: 200px;
+        opacity: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="{{DURATION}}" data-width="1920" data-height="1080">
+      <div class="clip stamp tl" id="stl" data-start="0.3" data-duration="{{DUR_MINUS_05}}">{{STAMP_TL}}</div>
+      <div class="clip stamp tr" id="str" data-start="0.5" data-duration="{{DUR_MINUS_05}}">{{STAMP_TR}}</div>
+      <div class="clip chapter"  id="ch"  data-start="0.6" data-duration="{{DUR_MINUS_05}}">{{CHAPTER}}</div>
+      <div class="clip context"  id="ctx" data-start="2.4" data-duration="3.5">{{CONTEXT}}</div>
+      <div class="clip verb pronoun" id="pron" data-start="3.0" data-duration="1.5">{{PRONOUN}}</div>
+      <div class="clip verb center"  id="vrb"  data-start="4.4" data-duration="2.6">{{VERB}}</div>
+      <div class="clip stamp br" id="arc" data-start="5.2" data-duration="1.0">[ {{ARCHIVE}} ]</div>
+      <div class="clip counter"  id="cnt" data-start="0.5" data-duration="{{DUR_MINUS_05}}">{{COUNTER}}</div>
+    </div>
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+      const D = {{DURATION}};
+      tl.fromTo("#stl", { opacity: 0, x: -10 }, { opacity: 0.55, x: 0, duration: 0.8 }, 0.3)
+        .fromTo("#str", { opacity: 0, x: 10 }, { opacity: 0.55, x: 0, duration: 0.8 }, 0.5)
+        .fromTo("#ch",  { opacity: 0, y: -10 }, { opacity: 1, y: 0, duration: 1.0 }, 0.6)
+        .fromTo("#ctx", { opacity: 0, y: 8 }, { opacity: 0.78, y: 0, duration: 1.0 }, 2.4)
+        .fromTo("#pron", { opacity: 0, x: -20 }, { opacity: 0.85, x: 0, duration: 0.8 }, 3.0)
+        .fromTo("#vrb", { opacity: 0, scale: 1.08, letterSpacing: "0.1em" },
+                       { opacity: 1, scale: 1, letterSpacing: "-0.02em", duration: 1.2, ease: "power3.out" }, 4.4)
+        .fromTo("#cnt", { opacity: 0 }, { opacity: 0.6, duration: 0.6 }, 0.5)
+        .fromTo("#arc", { opacity: 0 }, { opacity: 0.65, duration: 0.5 }, 5.2)
+        .to("#stl,#str,#ch,#ctx,#pron,#vrb,#arc,#cnt", { opacity: 0, duration: 0.6 }, D - 0.6);
+      window.__timelines["main"] = tl;
+    </script>
+  </body>
+</html>

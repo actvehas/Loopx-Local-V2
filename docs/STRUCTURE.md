@@ -55,8 +55,14 @@ LoopX-Local-V2/
         ├── Framework-Roteiros.md  # regras herdadas do gerente
         ├── Nomes-e-Locais-Usados.md
         ├── Voz-do-Canal.md        # anti-cópia (canais inspirados)
-        ├── forge-dna.json         # DNA permitido
+        ├── forge-dna.json         # DNA permitido (narrativa)
         ├── forge-history.json     # combos usados (auto-atualizado)
+        ├── edit-style/            # IDENTIDADE VISUAL (templates HyperFrames)
+        │   ├── style.json         #   tokens (cores, fontes, toggles)
+        │   ├── intro.html         #   title card 3-5s
+        │   ├── outro.html         #   quote + créditos 3s
+        │   └── overlays/
+        │       └── chapter-verb.html
         ├── Thumbs/                # refs visuais
         └── EP{NNN} - Título Curto/
             ├── README.md          # frontmatter: fase, combo, datas
