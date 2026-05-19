@@ -292,6 +292,82 @@ if [ "${STOP_AFTER_PHASE:-}" = "2" ]; then
 fi
 
 # ══════════════════════════════════════
+# FASE 2.5: Storyboard (canal I apenas) — gate de revisão humana
+# ══════════════════════════════════════
+# Só roda pro canal I (Fe al Descubierto) onde disciplina visual exige planejamento.
+# Cria storyboard.md a partir de roteiro+cenas-minutagem+skill. Cria .WAITING-APPROVAL.
+# Pipeline ABORTA limpo até user criar .storyboard-approved (touch manual OU botão dashboard).
+if [ "$CANAL" = "I" ]; then
+    if [ ! -f "$EPISODE_DIR/storyboard.md" ]; then
+        echo "📋 FASE 2.5: Gerando storyboard via skill /${GERENTE}..."
+        GERENTE_SKILL=$(load_skill "$GERENTE")
+        ROTEIRO_TXT=$(cat "$EPISODE_DIR/roteiro.md")
+        CENAS_TXT=$(cat "$EPISODE_DIR/cenas-minutagem.md")
+
+        claude -p --dangerously-skip-permissions "${GERENTE_SKILL}
+
+---
+
+EXECUTE — gerar storyboard estruturado.
+
+Roteiro completo:
+${ROTEIRO_TXT}
+
+Cenas-minutagem (timestamps absolutos da narração):
+${CENAS_TXT}
+
+Tarefa: gerar storyboard.md em ${EPISODE_DIR}/storyboard.md com UMA entrada por cena (mesma numeração e timestamps de cenas-minutagem.md).
+
+Cada entrada DEVE seguir o formato exato:
+
+## Cena NNN [MM:SS-MM:SS] · Tipo: <TIPO>
+- Layout: <um dos 5 tipos B4 do skill: dramatizada | card-conceito | card-tipografico | livro-aberto | objeto-isolado>
+- Personagens: <persona-ancora se aplicavel, ou 'narrador implicito', ou 'nenhum'>
+- Visual central: <descricao curta de UMA ideia visual — sem floreio>
+- Paleta: sépia-base + <cor-tema do EP rotada do Eixo 8>
+- Card-transicao: <se cena marca transição entre Pontos/Itens, especifique layout do Eixo 9; senao 'n/a'>
+- Mao hand-drawn: <sim/nao — se sim, descreva o gesto/palavra/nome a ser desenhado>
+- Audio cobre: <fragmento curto da narração — primeiros ~80 chars do que TTS diz nessa cena>
+
+Regras:
+- Aplicar disciplina visual B1-B6 do skill (vocabulario fixo, 1 ideia por frame, fundo papel persistente)
+- Rotacionar Layout entre cenas (NUNCA 5 dramatizadas seguidas)
+- Card-transicao OBRIGATORIO antes de cada novo Punto da lista (ver roteiro)
+- Mao hand-drawn em 2-4 cenas de alta emoção
+- Paleta: escolher 1 cor-tema do Eixo 8 e MANTER em TODO o EP (sépia base sempre)
+- Output: APENAS markdown estruturado, sem preâmbulo, sem fechamento" --max-turns 80
+
+        if [ ! -f "$EPISODE_DIR/storyboard.md" ]; then
+            echo "❌ FASE 2.5: Storyboard não foi criado"
+            exit 1
+        fi
+        touch "$EPISODE_DIR/.WAITING-APPROVAL"
+        SB_LINES=$(wc -l < "$EPISODE_DIR/storyboard.md")
+        echo "✅ FASE 2.5: storyboard.md criado ($SB_LINES linhas)"
+    fi
+
+    # Gate: aborta se não aprovado
+    if [ ! -f "$EPISODE_DIR/.storyboard-approved" ]; then
+        echo ""
+        echo "════════════════════════════════════════════════════"
+        echo "⏸  STORYBOARD AGUARDANDO APROVAÇÃO"
+        echo "════════════════════════════════════════════════════"
+        echo "Arquivo: $EPISODE_DIR/storyboard.md"
+        echo ""
+        echo "Pra aprovar e continuar pipeline, escolha UMA:"
+        echo "  1. Botão 'Aprovar storyboard' no dashboard (card do EP)"
+        echo "  2. Terminal: touch \"$EPISODE_DIR/.storyboard-approved\""
+        echo ""
+        echo "Depois, rode o pipeline de novo (vai pular Fases 1-2.5 já feitas)."
+        echo "════════════════════════════════════════════════════"
+        exit 0
+    fi
+    rm -f "$EPISODE_DIR/.WAITING-APPROVAL"
+    echo "✅ FASE 2.5: storyboard aprovado, seguindo pra Fase 3"
+fi
+echo ""
+
+# ══════════════════════════════════════
 # FASE 3: Sincronizador (prompts VEO)
 # ══════════════════════════════════════
 if [ -f "$EPISODE_DIR/prompts-veo3.md" ]; then
@@ -301,6 +377,11 @@ else
 
     ROTEIRO_TXT=$(cat "$EPISODE_DIR/roteiro.md")
     CENAS_TXT=$(cat "$EPISODE_DIR/cenas-minutagem.md")
+    STORYBOARD_TXT=""
+    if [ -f "$EPISODE_DIR/storyboard.md" ]; then
+        STORYBOARD_TXT=$(cat "$EPISODE_DIR/storyboard.md")
+        echo "   📋 Storyboard aprovado encontrado — Fase 3 vai consumir storyboard.md"
+    fi
 
     # Abordagem B: dois skills inline.
     #  - GERENTE: identidade visual do canal (persona, scene types, aesthetics próprios).
@@ -322,6 +403,7 @@ Tarefa: gerar prompts VEO 3.1 do EP${NUM} (${EPISODE_NAME}) deste canal.
 Canal: ${CANAL} (${CHANNEL_NAME})
 Estilo visual (de channels.json, use literal no header de cada prompt): ${ESTILO}
 
+$([ -n "$STORYBOARD_TXT" ] && printf "STORYBOARD APROVADO (FONTE DE VERDADE — siga 100%%, cada Cena NNN do storyboard vira UM prompt VEO):\n%s\n\n" "$STORYBOARD_TXT")
 ROTEIRO COMPLETO:
 ${ROTEIRO_TXT}
 

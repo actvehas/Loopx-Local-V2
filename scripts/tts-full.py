@@ -320,26 +320,35 @@ def main():
                     f.write(f"{int(e//3600):02d}:{int((e%3600)//60):02d}:{e%60:06.3f}".replace('.', ','))
                     f.write(f"\n{seg['text'].strip()}\n\n")
 
-            # Cenas agrupadas
+            # Cenas agrupadas — ZERO GAP entre cenas + duração clampada em 6-8s.
+            # Cada cena começa onde a anterior terminou (prev_end), não no start do segment
+            # do Whisper. Pausas do narrador ficam DENTRO da cena, não entre elas.
             scenes_path = os.path.join(output_dir, "cenas-minutagem.md")
+            MIN_DUR, MAX_DUR = 6.0, 8.0
             scenes = []
-            cur_text, cur_start, sn = "", None, 1
-            for seg in result["segments"]:
+            cur_text, cur_start, cur_end, sn, prev_end = "", None, None, 1, 0.0
+            for i, seg in enumerate(result["segments"]):
                 if cur_start is None:
-                    cur_start = seg["start"]
+                    # Próxima cena começa exatamente onde a anterior fechou (anti-gap)
+                    cur_start = prev_end if prev_end > 0 else seg["start"]
                 cur_text += " " + seg["text"].strip()
-                dur = seg["end"] - cur_start
-                # Cut at 6s if sentence ends, force cut at 8s always
-                if dur >= 8 or (dur >= 6 and seg["text"].strip().endswith((".", "?", "!"))):
-                    end_time = min(seg["end"], cur_start + 8.0) if dur > 8 else seg["end"]
+                cur_end = seg["end"]
+                dur = cur_end - cur_start
+                is_last = (i == len(result["segments"]) - 1)
+                sentence_end = seg["text"].strip().endswith((".", "?", "!", ";"))
+                # Fecha cena se: 6s+ com fim de frase, OU 8s+ force, OU último segment
+                if dur >= MAX_DUR or (dur >= MIN_DUR and sentence_end) or is_last:
+                    # Clamp em MAX_DUR (Veo3 só gera 8s)
+                    end_time = min(cur_end, cur_start + MAX_DUR)
+                    # Garante MIN_DUR (estende se ficou curto — só último segment normalmente)
+                    if end_time - cur_start < MIN_DUR:
+                        end_time = cur_start + MIN_DUR
                     m1, s1 = int(cur_start // 60), int(cur_start % 60)
                     m2, s2 = int(end_time // 60), int(end_time % 60)
                     scenes.append(f'Cena {sn} ({m1}:{s1:02d}-{m2}:{s2:02d}): "{cur_text.strip()}"')
                     sn += 1
-                    cur_text, cur_start = "", None
-            if cur_text.strip():
-                m1, s1 = int(cur_start // 60), int(cur_start % 60)
-                scenes.append(f'Cena {sn} ({m1}:{s1:02d}-fim): "{cur_text.strip()}"')
+                    prev_end = end_time
+                    cur_text, cur_start, cur_end = "", None, None
 
             with open(scenes_path, 'w', encoding='utf-8') as f:
                 f.write(f"# Cenas com Minutagem — Roteiro {num}\n\n")

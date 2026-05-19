@@ -824,6 +824,7 @@ function renderPipelines() {
       \${a.cenasTotal > 0 ? \`<div class="ops-progress-bar"><div style="width:\${progress}%;background:\${borderColor}"></div></div><small style="color:var(--muted)">\${a.cenasCount}/\${a.cenasTotal} cenas (\${progress}%)</small>\` : ''}
       <div style="margin-top:10px">\${fileChecks}</div>
       <div style="margin-top:10px"><b>Processos ativos:</b><br>\${procsHtml}</div>
+      \${(info.storyboard && info.storyboard.exists && info.storyboard.waiting && !info.storyboard.approved) ? \`<div style="margin-top:10px;padding:10px;background:rgba(245,166,35,0.15);border:1px solid #f5a623;border-radius:6px"><b style="color:#f5a623">⏸ Storyboard aguardando aprovação</b><br><small style="color:var(--muted)">Abra <code>storyboard.md</code> no Obsidian, revise/edite, depois clique abaixo.</small><br><button class="btn-run" style="margin-top:6px" onclick="approveStoryboard('\${encodeURIComponent(e.channel)}','\${e.ep}')">✅ Aprovar storyboard e continuar</button></div>\` : (info.storyboard && info.storyboard.approved ? '<div style="margin-top:8px;font-size:12px;color:var(--green)">✅ Storyboard aprovado</div>' : '')}
       \${logSummary}
       \${info.log ? \`<details \${expandedLogs.has(key)?'open':''} data-logkey="\${key}" onclick="setTimeout(()=>toggleLogExpand('\${key}',this.open),0)" style="margin-top:8px"><summary style="cursor:pointer;color:var(--accent);font-size:12px">📋 Ver tail do log</summary><pre class="log-tail censor" style="max-height:300px;margin-top:6px;overflow-y:auto;overflow-x:auto;white-space:pre">\${(info.log.tail||'').replace(/</g,'&lt;')}</pre></details>\` : ''}
       <div style="margin-top:10px;display:flex;gap:6px;align-items:center">
@@ -1114,6 +1115,17 @@ function toast(msg, isErr) {
   t.textContent = msg;
   t.className = 'toast show' + (isErr ? ' error' : '');
   setTimeout(()=>t.className = 'toast', 2400);
+}
+async function approveStoryboard(channel, ep) {
+  channel = decodeURIComponent(channel);
+  if (!confirm('Aprovar storyboard do EP'+ep+' ('+channel+')? Pipeline vai prosseguir pra Fase 3 (sincronizador VEO) quando voce rodar de novo.')) return;
+  try {
+    const r = await fetch('/api/storyboard/approve', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ channel, ep }) });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'erro');
+    toast('✅ Storyboard EP'+ep+' aprovado — rode o pipeline novamente pra continuar.');
+    if (typeof fetchEpStatus === 'function') fetchEpStatus(channel, ep);
+  } catch(e) { toast('Erro: '+e.message, true); }
 }
 async function runPipeline(channel, ep, titulo) {
   channel = decodeURIComponent(channel);
@@ -1423,6 +1435,11 @@ const server = http.createServer((req, res) => {
           const t = fs.readFileSync(path.join(epDir, 'cenas-minutagem.md'), 'utf8');
           cenasTotal = (t.match(/^Cena /gm) || []).length;
         }
+        result.storyboard = {
+          exists: has('storyboard.md'),
+          waiting: has('.WAITING-APPROVAL'),
+          approved: has('.storyboard-approved'),
+        };
         result.artifacts = {
           roteiro: has('roteiro.md'),
           desc: has('desc.md'),
@@ -1430,6 +1447,7 @@ const server = http.createServer((req, res) => {
           audio: has('audio.wav'),
           srt: has('audio.srt'),
           cenasMinutagem: has('cenas-minutagem.md'),
+          storyboard: has('storyboard.md'),
           prompts: has('prompts-veo3.md'),
           cenasCount,
           cenasTotal,
@@ -1691,6 +1709,26 @@ const server = http.createServer((req, res) => {
       const id = pipeline.enqueue(channel, ep, titulo, { stopAfterPhase: stopAfterPhase || null });
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ ok: true, id }));
+    }).catch((e) => { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: e.message })); });
+  }
+  // Aprovar storyboard (canal I) — cria .storyboard-approved no diretório do EP
+  if (req.method === 'POST' && req.url === '/api/storyboard/approve') {
+    return readBody(req).then((body) => {
+      const { channel, ep } = body;
+      if (typeof channel !== 'string' || typeof ep !== 'string') throw new Error('channel + ep obrigatórios');
+      const { CANAIS_DIR } = require('./dashboard-sync');
+      const channelDir = path.join(CANAIS_DIR, channel);
+      let epDir = null;
+      if (fs.existsSync(channelDir)) {
+        const match = fs.readdirSync(channelDir).find(d => new RegExp('^' + ep + ' - ').test(d));
+        if (match) epDir = path.join(channelDir, match);
+      }
+      if (!epDir) throw new Error(`EP${ep} não encontrado em ${channel}`);
+      if (!fs.existsSync(path.join(epDir, 'storyboard.md'))) throw new Error('storyboard.md não existe ainda');
+      fs.writeFileSync(path.join(epDir, '.storyboard-approved'), new Date().toISOString() + '\n');
+      try { fs.unlinkSync(path.join(epDir, '.WAITING-APPROVAL')); } catch {}
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, approved: epDir }));
     }).catch((e) => { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: e.message })); });
   }
   if (req.method === 'POST' && req.url === '/api/pipeline/run-fila-batch') {
