@@ -226,6 +226,44 @@ if [ "${STOP_AFTER_PHASE:-}" = "1" ]; then
 fi
 
 # ══════════════════════════════════════
+# FASE 1d: Pré-processar roteiro pra TTS (strip markdown)
+# tts-full.py lê roteiro-tts.md por preferência. Aqui geramos versão limpa
+# removendo headers (#, ##), frontmatter, blocos de metadados, listas e
+# separadores que o LLM costuma incluir mas não devem ir pra voz.
+# ══════════════════════════════════════
+if [ ! -f "$EPISODE_DIR/roteiro-tts.md" ] && [ -f "$EPISODE_DIR/roteiro.md" ]; then
+    echo "🧹 FASE 1d: Gerando roteiro-tts.md (strip markdown)..."
+    python3 <<PYEOF
+import re
+src = open("$EPISODE_DIR/roteiro.md").read()
+# 1. Remove YAML frontmatter
+src = re.sub(r'^---\n.*?\n---\n', '', src, count=1, flags=re.DOTALL)
+# 2. Remove blocos de metadados rotulados (## DNA, ## Metadata, ## Notes, ## Estructura, etc.)
+META_HEADERS = r'(?:DNA|Metadata|Notes?|Estructura|Estrutura|Notas?|Eixos?|Anti[- ]?[Mm]assa|Variation|Variação|Resumo|Resumen|Sinopse|Synopsis|Outline|Esquema|Setup|Briefing)'
+src = re.sub(rf'^## {META_HEADERS}.*?(?=^## |\Z)', '', src, flags=re.M | re.DOTALL | re.I)
+# 3. Remove TODOS os headers markdown (#, ##, ###...) — mantém só conteúdo
+src = re.sub(r'^#+\s.*$', '', src, flags=re.M)
+# 4. Remove separadores ---/***
+src = re.sub(r'^[-*_]{3,}\s*$', '', src, flags=re.M)
+# 5. Remove linhas de lista bullet/numbered se forem metadata-like (curtas, com :)
+src = re.sub(r'^\s*[-*]\s+[A-ZÀ-Ÿ][^:.\n]{2,40}:\s*.*$', '', src, flags=re.M)
+# 6. Remove markdown formatting inline (**bold**, *italic*, \`code\`, [link](url))
+src = re.sub(r'\*\*(.+?)\*\*', r'\1', src)
+src = re.sub(r'(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)', r'\1', src)
+src = re.sub(r'\`([^\`]+)\`', r'\1', src)
+src = re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', src)
+# 7. Colapsa múltiplas linhas em branco
+src = re.sub(r'\n{3,}', '\n\n', src)
+src = src.strip() + "\n"
+open("$EPISODE_DIR/roteiro-tts.md", "w").write(src)
+print(f"   roteiro.md: {len(open('$EPISODE_DIR/roteiro.md').read())} chars")
+print(f"   roteiro-tts.md: {len(src)} chars (limpo)")
+PYEOF
+    echo "✅ FASE 1d: roteiro-tts.md criado (TTS vai ler esse)"
+fi
+echo ""
+
+# ══════════════════════════════════════
 # FASE 2: TTS + Whisper
 # ══════════════════════════════════════
 if [ -f "$EPISODE_DIR/audio.wav" ]; then

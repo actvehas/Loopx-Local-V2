@@ -279,8 +279,8 @@ const HTML = `<!doctype html>
                     margin-bottom: 8px; }
   @media (max-width: 700px) { .fila-form-grid { grid-template-columns: 1fr; } }
   .run-card { background: var(--panel); border:1px solid var(--green); border-radius: 8px; padding: 16px; margin-bottom: 12px; }
-  .workers-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; margin-bottom: 8px; }
-  @media (max-width: 1400px) { .workers-grid { grid-template-columns: repeat(4, 1fr); } }
+  .workers-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-bottom: 8px; }
+  @media (max-width: 1400px) { .workers-grid { grid-template-columns: repeat(3, 1fr); } }
   @media (max-width: 900px) { .workers-grid { grid-template-columns: repeat(2, 1fr); } }
   @media (max-width: 600px) { .workers-grid { grid-template-columns: 1fr; } }
   .worker-card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 12px; }
@@ -661,8 +661,9 @@ function renderPipelines() {
   const workers = pipelineStatus.workers || { 1: null, 2: null, 3: null };
   const pipJobs = pipelineStatus.pipelineJobs || [];
 
-  // 7 worker cards: 1-3 são paralelos (pipeline-runner), 4-7 derivados do filesystem
-  const workersHTML = \`<div class="workers-grid">\${[1,2,3,4,5,6,7].map(ph=>{
+  // 6 worker cards: 1-3 são paralelos (pipeline-runner), 4-6 derivados do filesystem.
+  // Fase 7 (Publicado) removida desta seção — visível só nas outras abas.
+  const workersHTML = \`<div class="workers-grid">\${[1,2,3,4,5,6].map(ph=>{
     if (ph <= 3) {
       const w = workers[ph];
       if (!w) return \`<div class="worker-card idle"><h4>Fase \${ph} · \${phaseNames[ph]}</h4><div class="empty" style="padding:14px">idle</div></div>\`;
@@ -842,7 +843,7 @@ function renderPipelines() {
       <small style="color:var(--muted);font-size:11px">\${opsEps.length} EP\${opsEps.length===1?'':'s'} \${opsChannelFilter?'em '+opsChannelFilter:'no total'}</small>
     </div>
     <div class="ops-grid">\${opsCardsHTML}</div>
-    <h3 style="margin-top:32px">⚡ Assembly Line — todas as fases (1-7)</h3>
+    <h3 style="margin-top:32px">⚡ Assembly Line — fases (1-6)</h3>
     <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Fases 1-3 = workers paralelos (pipeline-runner). Fases 4-7 = EPs lidos do filesystem.</div>
     \${workersHTML}
     <h3 style="margin-top:24px">🎬 EPs em produção — fases 1→7</h3>

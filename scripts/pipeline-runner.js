@@ -280,9 +280,36 @@ function watchdog() {
       changed = true;
     }
   }
-  if (changed) { persist(); tickPipeline(); }
+
+  // Modo SINGLE — reapa jobs em state.running cujo PID morreu sem o 'exit' handler disparar
+  // (caso típico: SIGKILL externo, OOM, crash do node).
+  const aliveRunning = [];
+  for (const j of state.running) {
+    try { process.kill(j.pid, 0); aliveRunning.push(j); }
+    catch {
+      // PID morto. Tenta inferir status a partir do log.
+      let status = 'orphaned', tail = '';
+      try {
+        const log = fs.readFileSync(j.logFile, 'utf8');
+        tail = log.slice(-3000);
+        if (/PIPELINE COMPLETO/.test(tail)) status = 'success';
+        else if (/STOP_AFTER_PHASE=\d+ — pipeline parou/.test(tail)) status = 'success';
+        else if (/💥 Erro fatal|❌ FASE|Reached max turns/.test(tail)) status = 'failed';
+      } catch {}
+      state.history.unshift({ ...j, finishedAt: new Date().toISOString(), status, reason: 'reaped-single' });
+      console.log(`[watchdog] reaped single ${j.letter}${j.ep} (pid ${j.pid}) — ${status}`);
+      changed = true;
+    }
+  }
+  if (aliveRunning.length !== state.running.length) {
+    state.running = aliveRunning;
+    state.history = state.history.slice(0, 50);
+  }
+
+  if (changed) { persist(); tickPipeline(); tick(); }
 }
 setTimeout(tickPipeline, 1000);
+setTimeout(tick, 1100);
 setInterval(watchdog, 30000);
 
 function tailLog(id, lines = 40) {
