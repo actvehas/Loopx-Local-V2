@@ -12,6 +12,20 @@ SCRIPTS_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPTS_DIR")"
 HETZNER="root@65.109.85.250"
 
+# ── Carrega skill do gerente do canal (Abordagem B: inline skill content) ──
+# Garante isolamento por canal: cada chamada claude recebe LITERALMENTE o skill
+# do canal correto como contexto, sem depender de slash-commands em headless.
+load_skill() {
+    local skill_name="$1"
+    local path="$HOME/.claude/commands/${skill_name}.md"
+    if [ ! -f "$path" ]; then
+        echo "❌ Skill '$skill_name' não existe em $path" >&2
+        echo "   Crie o skill antes de rodar pipeline pra este canal." >&2
+        exit 1
+    fi
+    cat "$path"
+}
+
 if [ -z "$CANAL" ] || [ -z "$NUM" ]; then
     echo "Uso: ./pipeline-full.sh CANAL NUM [TITULO]"
     echo "Exemplo: ./pipeline-full.sh E 18"
@@ -60,12 +74,15 @@ EPISODE_NAME=$(basename "$EPISODE_DIR")
 
 # Estilo visual e gerente por canal (lido de channels.json)
 ESTILO=$(python3 -c "import json; print(json.load(open('$CHANNELS_JSON')).get('$CANAL',{}).get('style','Cinematic Realism warm tones'))" 2>/dev/null)
-GERENTE=$(python3 -c "import json; print(json.load(open('$CHANNELS_JSON')).get('$CANAL',{}).get('gerente','gerenteE'))" 2>/dev/null)
+GERENTE=$(python3 -c "import json; print(json.load(open('$CHANNELS_JSON')).get('$CANAL',{}).get('gerente',''))" 2>/dev/null)
 LANGUAGE=$(python3 -c "import json; print(json.load(open('$CHANNELS_JSON')).get('$CANAL',{}).get('language','es'))" 2>/dev/null)
 
 # Fallbacks para canais sem config completa
 if [ -z "$ESTILO" ]; then ESTILO="Cinematic Realism warm tones"; fi
-if [ -z "$GERENTE" ]; then GERENTE="gerenteE"; fi
+if [ -z "$GERENTE" ]; then
+    echo "❌ Canal $CANAL não tem campo 'gerente' em $CHANNELS_JSON — defina antes de rodar pipeline."
+    exit 1
+fi
 if [ -z "$LANGUAGE" ]; then LANGUAGE="es"; fi
 
 echo ""
@@ -82,53 +99,30 @@ if [ -f "$EPISODE_DIR/roteiro.md" ]; then
     WORD_COUNT=$(wc -w < "$EPISODE_DIR/roteiro.md" | tr -d ' ')
     echo "⏭️  FASE 1: roteiro.md já existe ($WORD_COUNT palavras) — pulando"
 else
-    echo "📝 FASE 1: Gerando roteiro via Claude..."
+    echo "📝 FASE 1: Gerando roteiro via skill /${GERENTE}..."
 
-    NOMES_PATH="$CHANNEL_DIR/Nomes e Locais Usados.md"
-    FRAMEWORK_PATH="$CHANNEL_DIR/Framework Roteiros.md"
+    # Abordagem B: skill inline. Carrega LITERALMENTE o gerenteX.md como contexto
+    # — Claude segue só as regras desse canal, sem chance de mistura.
+    SKILL_CONTENT=$(load_skill "$GERENTE")
 
-    if [ "$LANGUAGE" = "en" ]; then
-        ROTEIRO_PROMPT="You are the screenplay writer for Canal $CANAL ($CHANNEL_NAME).
-Read these files for context:
-- Framework: $FRAMEWORK_PATH
-- Names already used: $NOMES_PATH
+    ROTEIRO_PROMPT="${SKILL_CONTENT}
 
-Title: $EPISODE_NAME
-Canal: $CANAL
+---
 
-Write a complete documentary script in ENGLISH.
-- 5,000-7,000 words (target: 15-20 minutes at 0.85 speed)
-- Follow the Framework structure (Paradoxo + 5-7 Camadas + Contraste + Ciclo + Fecho)
-- 3rd person, historical present tense
-- One specific number every 30-60 seconds
-- Cite historical sources in narration (Polybius, Plutarch, etc.)
-- Use original terms in the civilization's language (Latin, Greek, Nahuatl, etc.)
-- NO humor, NO 'you', NO rhetorical questions in body
-- Tone: grave, authoritative, fascinated
-- TTS-ready: plain text, no bold/italic/caps, no emojis
+EXECUTE AGORA — VOCÊ É O GERENTE ACIMA.
 
-Write the COMPLETE roteiro to: $EPISODE_DIR/roteiro.md"
-    else
-        ROTEIRO_PROMPT="You are the screenplay writer for Canal $CANAL ($CHANNEL_NAME).
-Read these files for context:
-- Framework: $FRAMEWORK_PATH
-- Names already used: $NOMES_PATH
+Tarefa: escrever o roteiro completo do EP${NUM} do canal acima.
 
-Title: $EPISODE_NAME
-Canal: $CANAL
+Contexto operacional:
+- Canal: ${CANAL} (${CHANNEL_NAME})
+- Número do EP: ${NUM}
+- Título: ${EPISODE_NAME}
+- Pasta do EP: ${EPISODE_DIR}
+- Pasta do canal: ${CHANNEL_DIR}
 
-Write a complete screenplay (roteiro) in SPANISH (castellano mexicano urbano).
-- 10 blocks (Bloque 1 through Bloque 10)
-- Each block ~1700 words (minimum 1500)
-- Total ~17,000 words
-- First person narration (elderly woman)
-- YouTube-safe: NO explicit sexual content, only double meaning and ambiguity
-- TTS-ready: plain text, no bold/italic/caps, no emojis
-- DO NOT use any character names from the 'Nomes e Locais Usados' file
-- Follow the Framework structure (spoiler opening, arc, subplots, CTAs)
+Salve o roteiro COMPLETO em: ${EPISODE_DIR}/roteiro.md
 
-Write the COMPLETE roteiro to: $EPISODE_DIR/roteiro.md"
-    fi
+Siga TODAS as regras de identidade, idioma, persona, estrutura, duração, tom e restrições definidas no seu skill acima. NÃO use referências, hashtags, personagens, cenários ou vocabulário de outros canais. Se este canal tem 'Nomes e Locais Usados.md' ou 'Framework Roteiros.md' na pasta do canal, leia antes de escrever."
 
     claude -p --dangerously-skip-permissions "$ROTEIRO_PROMPT" --max-turns 80
 
@@ -146,42 +140,90 @@ echo ""
 # FASE 1b: desc.md + README.md
 # ══════════════════════════════════════
 if [ ! -f "$EPISODE_DIR/desc.md" ]; then
-    echo "📝 FASE 1b: Gerando desc.md..."
-    claude -p --dangerously-skip-permissions "Read the roteiro at $EPISODE_DIR/roteiro.md.
-Write a YouTube description in SPANISH (3-5 lines + hashtags) for this video.
-Style: confessional, hook the viewer, ask for comments.
-Include hashtags: #ConfesionesdelasAbuelas #HistoriaDeVida #NuncaEsTarde
-Write to: $EPISODE_DIR/desc.md" --max-turns 10
-    echo "✅ desc.md criado"
+    echo "📝 FASE 1b: Gerando desc.md via skill /${GERENTE}..."
+    # Skill inline garante hashtags/estilo/idioma corretos do canal — sem hardcode.
+    SKILL_CONTENT=$(load_skill "$GERENTE")
+    ROTEIRO_TXT=$(cat "$EPISODE_DIR/roteiro.md")
+    claude -p --dangerously-skip-permissions "${SKILL_CONTENT}
+
+---
+
+EXECUTE: escreva a descrição de YouTube do EP${NUM} (${EPISODE_NAME}) deste canal.
+
+Roteiro completo do EP${NUM}:
+${ROTEIRO_TXT}
+
+Regras:
+- Idioma, tom e hashtags SEGUEM as regras do canal definidas no seu skill acima.
+- NÃO use hashtags de outros canais.
+- 3-5 linhas + hashtags próprias do canal.
+- Salve em: ${EPISODE_DIR}/desc.md
+- Responda APENAS escrevendo o arquivo, sem preâmbulo." --max-turns 20 && echo "✅ desc.md criado"
 fi
 
 if [ ! -f "$EPISODE_DIR/README.md" ]; then
-    echo "📝 FASE 1b: Gerando README.md..."
-    claude -p --dangerously-skip-permissions "Read the roteiro at $EPISODE_DIR/roteiro.md.
-Create a README.md with:
-- Title and episode number
-- Characters list (name, age, role)
-- Locations used
-- Story arc summary (3-5 lines)
-- Production checklist (roteiro, audio, srt, cenas, prompts, render, thumb, upload)
-Write to: $EPISODE_DIR/README.md" --max-turns 10
-    echo "✅ README.md criado"
+    echo "📝 FASE 1b: Gerando README.md (OpenRouter free)..."
+    ROTEIRO_TXT=$(cat "$EPISODE_DIR/roteiro.md")
+    "$SCRIPTS_DIR/openrouter-task.sh" "$EPISODE_DIR/README.md" "Roteiro do EP$NUM:
+
+$ROTEIRO_TXT
+
+---
+Tarefa: crie um README.md em markdown com:
+- Título e número do episódio
+- Lista de personagens (nome, idade, papel)
+- Locais usados
+- Resumo do arco da história (3-5 linhas)
+- Production checklist: [ ] roteiro [ ] audio [ ] srt [ ] cenas [ ] prompts [ ] render [ ] thumb [ ] upload
+
+Responda APENAS com o markdown final, sem preâmbulo." && echo "✅ README.md criado"
 fi
 echo ""
 
 # ══════════════════════════════════════
 # FASE 1c: Atualizar Nomes e Locais
 # ══════════════════════════════════════
-echo "📝 FASE 1c: Atualizando Nomes e Locais..."
+echo "📝 FASE 1c: Atualizando Nomes e Locais (OpenRouter free)..."
 NOMES_PATH="$CHANNEL_DIR/Nomes e Locais Usados.md"
-claude -p --dangerously-skip-permissions "Read the roteiro at $EPISODE_DIR/roteiro.md.
-Read the current names file at $NOMES_PATH.
-Extract ALL new character names and locations from the roteiro.
-APPEND them to the appropriate sections in $NOMES_PATH (mark with **bold** and note roteiro $NUM).
-Also mark the profession used in the 'Profissões DISPONÍVEIS' section.
-Do NOT remove any existing content, only APPEND." --max-turns 10
-echo "✅ Nomes e Locais atualizados"
+if [ -f "$NOMES_PATH" ]; then
+    ROTEIRO_TXT=$(cat "$EPISODE_DIR/roteiro.md")
+    NOMES_TXT=$(cat "$NOMES_PATH")
+    TMP_NOMES=$(mktemp)
+    "$SCRIPTS_DIR/openrouter-task.sh" "$TMP_NOMES" "Roteiro do EP$NUM:
+
+$ROTEIRO_TXT
+
+---
+Arquivo atual de Nomes e Locais:
+
+$NOMES_TXT
+
+---
+Tarefa: extraia TODOS os novos personagens e locais do roteiro $NUM que ainda NÃO estão no arquivo.
+Retorne o arquivo COMPLETO atualizado em markdown, com os novos itens APENDADOS nas seções corretas, marcados com **negrito** e a nota \`(roteiro $NUM)\`.
+Também marque com [x] a profissão usada (se houver seção 'Profissões DISPONÍVEIS').
+NÃO remova nada existente. Responda APENAS com o markdown final do arquivo completo, sem preâmbulo." && {
+        # Só sobrescreve se o output tem volume >= ao original (evita truncamento)
+        OLD_SIZE=$(wc -c < "$NOMES_PATH")
+        NEW_SIZE=$(wc -c < "$TMP_NOMES")
+        if [ "$NEW_SIZE" -ge "$OLD_SIZE" ]; then
+            mv "$TMP_NOMES" "$NOMES_PATH"
+            echo "✅ Nomes e Locais atualizados"
+        else
+            rm -f "$TMP_NOMES"
+            echo "⚠️  FASE 1c: Qwen retornou conteúdo menor ($NEW_SIZE vs $OLD_SIZE bytes) — mantendo original"
+        fi
+    } || echo "⚠️  FASE 1c falhou — seguindo"
+else
+    echo "⚠️  FASE 1c: $NOMES_PATH não existe — pulando"
+fi
 echo ""
+
+# Parada após Fase 1 (modo pipelined: worker slot 1 termina aqui)
+if [ "${STOP_AFTER_PHASE:-}" = "1" ]; then
+    echo "✋ STOP_AFTER_PHASE=1 — pipeline parou em Fase 1 (Roteiro+desc+README+Nomes). Fases 2-6 puladas."
+    exit 0
+fi
 
 # ══════════════════════════════════════
 # FASE 2: TTS + Whisper
@@ -205,61 +247,56 @@ fi
 CENAS_COUNT=$(grep -c "^Cena " "$EPISODE_DIR/cenas-minutagem.md" || echo "0")
 echo "📊 $CENAS_COUNT cenas no cenas-minutagem.md"
 
+# Parada após Fase 2 (modo pipelined: worker slot 2 termina aqui)
+if [ "${STOP_AFTER_PHASE:-}" = "2" ]; then
+    echo "✋ STOP_AFTER_PHASE=2 — pipeline parou em Fase 2 (TTS). Fases 3-6 puladas."
+    exit 0
+fi
+
 # ══════════════════════════════════════
 # FASE 3: Sincronizador (prompts VEO)
 # ══════════════════════════════════════
 if [ -f "$EPISODE_DIR/prompts-veo3.md" ]; then
     echo "⏭️  FASE 3: prompts-veo3.md já existe — pulando sincronizador"
 else
-    echo "🎯 FASE 3: Gerando prompts VEO 3.1 via sincronizador..."
+    echo "🎯 FASE 3: Gerando prompts VEO 3.1 via /${GERENTE} + /sincronizador..."
 
-    claude -p --dangerously-skip-permissions "You are the VEO 3.1 prompt sincronizador. Read these two files:
-1. Roteiro: $EPISODE_DIR/roteiro.md
-2. Cenas: $EPISODE_DIR/cenas-minutagem.md
+    ROTEIRO_TXT=$(cat "$EPISODE_DIR/roteiro.md")
+    CENAS_TXT=$(cat "$EPISODE_DIR/cenas-minutagem.md")
 
-Canal: $CANAL
-Estilo: $ESTILO
+    # Abordagem B: dois skills inline.
+    #  - GERENTE: identidade visual do canal (persona, scene types, aesthetics próprios).
+    #  - SINCRONIZADOR: mecânica de transformar roteiro+cenas em prompts VEO no formato (Cena NNN).
+    # NÃO repetir regras de scene types aqui: cada canal define as suas no skill do gerente.
+    GERENTE_SKILL=$(load_skill "$GERENTE")
+    SINCRONIZADOR_SKILL=""
+    [ -f "$HOME/.claude/commands/sincronizador.md" ] && SINCRONIZADOR_SKILL=$(cat "$HOME/.claude/commands/sincronizador.md")
 
-Also read the full sincronizador skill for detailed rules: ~/.claude/commands/sincronizador.md
+    claude -p --dangerously-skip-permissions "════════ SKILL DO CANAL (gerente) ════════
+${GERENTE_SKILL}
 
-CRITICAL IMMERSION RULES:
+════════ SKILL UNIVERSAL DE SINCRONIZAÇÃO VEO ════════
+${SINCRONIZADOR_SKILL}
 
-THREE SCENE TYPES IN ROTATION:
-- TYPE A (AVATAR): Narrator in PRESENT DAY (current age), seated, talking to camera in a warm living room. Natural window light. Gesturing, touching objects, changing expression. MINIMUM 25% of all scenes.
-- TYPE B (FLASHBACK): Story scenes in the PAST. Period-appropriate clothing for the era and social class. Vintage aesthetic: slightly desaturated warm amber tones, film grain feel. Natural lighting. ALWAYS with movement.
-- TYPE C (CUTAWAY): Detail shots of hands, objects, food, scenery. No faces. For dramatic pauses.
+════════ EXECUTE ════════
+Tarefa: gerar prompts VEO 3.1 do EP${NUM} (${EPISODE_NAME}) deste canal.
 
-MANDATORY ROTATION:
-- Opening: A A A A B (narrator talks first, then flashback begins)
-- Body: B B B C A B B B A B B C A (natural rhythm)
-- Climax: B B B B A (intense flashback, narrator reacts)
-- Closing: A A A (narrator closes to camera)
-- NEVER more than 5 flashbacks without an avatar
-- NEVER more than 2 avatars in a row (except opening/closing)
+Canal: ${CANAL} (${CHANNEL_NAME})
+Estilo visual (de channels.json, use literal no header de cada prompt): ${ESTILO}
 
-CHARACTER CONSISTENCY:
-- Create FULL identity blocks for EVERY character
-- COPY the COMPLETE identity block into EVERY prompt where that character appears
-- VEO has NO memory — each prompt must be fully self-contained
-- SAME clothing, accessories, hair in ALL scenes of same character
+ROTEIRO COMPLETO:
+${ROTEIRO_TXT}
 
-FLASHBACK AESTHETICS:
-- Clothing CORRECT for the era and social class
-- Realistic settings for the specific city/region
-- Natural lighting only, warm desaturated colors like aged analog film
-- Textures: dust, steam, light rays, long shadows
+CENAS-MINUTAGEM (timestamps de cada cena):
+${CENAS_TXT}
 
-AVATAR AESTHETICS:
-- Simple dignified elderly woman clothing
-- SAME room in ALL avatar scenes
-- Warm afternoon window light, personal objects visible
-
-FORMAT: (Cena NNN)[${ESTILO}, No Blood, No Nudity, No Dialogue, No Music] prompt text
-- EVERY prompt has FULL character description
-- VARY shot types (never 5 identical in a row)
-- YouTube-safe only, output ONLY prompts, one per line
-
-Write ALL prompts to: $EPISODE_DIR/prompts-veo3.md" --max-turns 80
+Regras de execução:
+- Estética visual, persona do narrador, scene types (avatar/flashback/cutaway ou outros), paleta, vestimenta, cenários e aspecto VÊM EXCLUSIVAMENTE do skill do gerente acima. NÃO use estética de outros canais.
+- Mecânica de prompt (formato '(Cena NNN)[ESTILO, restrições] texto', character consistency blocks, VEO sem memória, restrições YouTube-safe) vem do skill do sincronizador.
+- Se este canal NÃO usa avatar/narrador-em-cena (ex: 3ª pessoa documental, stick figures, comida hero), siga o que o gerente especifica — NÃO force TYPE A/B/C de outro canal.
+- Formato de cada linha: (Cena NNN)[${ESTILO}, No Blood, No Nudity, No Dialogue, No Music] descrição completa
+- Output: APENAS os prompts, um por linha, começando em (Cena 001). Sem preâmbulo, sem markdown, sem explicação.
+- Salvar em: ${EPISODE_DIR}/prompts-veo3.md" --max-turns 80
 
     if [ -f "$EPISODE_DIR/prompts-veo3.md" ]; then
         PROMPT_COUNT=$(grep -c "^(Cena" "$EPISODE_DIR/prompts-veo3.md" || echo "0")
@@ -271,24 +308,59 @@ Write ALL prompts to: $EPISODE_DIR/prompts-veo3.md" --max-turns 80
 fi
 echo ""
 
+# Stop after Phase 3 if env var set (modo "fila batch": prepara conteúdo sem queimar API Flow)
+if [ "${STOP_AFTER_PHASE:-}" = "3" ]; then
+    echo "✋ STOP_AFTER_PHASE=3 — pipeline parou em Fase 3 (Sincronizador). Fases 4-6 puladas."
+    exit 0
+fi
+
 # ══════════════════════════════════════
-# FASE 4: Garantir Chrome com Flow aberto
+# FASE 4: Adquirir conta Flow + garantir Chrome
 # ══════════════════════════════════════
-echo "🌐 FASE 4: Verificando Chrome com Flow..."
-CHROME_RUNNING=$(curl -s http://localhost:9222/json/version 2>/dev/null | head -1)
+echo "🌐 FASE 4: Adquirindo conta Flow livre..."
+JOB_TAG="${JOB_ID:-$CANAL$NUM}"
+ACQUIRED=$(node "$SCRIPTS_DIR/flow-account-manager.js" wait-acquire "$JOB_TAG")
+if [ -z "$ACQUIRED" ]; then
+    echo "❌ FASE 4: Falha ao adquirir conta Flow"
+    exit 1
+fi
+FLOW_ACCOUNT_ID=$(echo "$ACQUIRED" | python3 -c "import json,sys;print(json.load(sys.stdin)['id'])")
+FLOW_PROFILE=$(echo "$ACQUIRED" | python3 -c "import json,sys;print(json.load(sys.stdin)['profile'])")
+FLOW_PORT=$(echo "$ACQUIRED" | python3 -c "import json,sys;print(json.load(sys.stdin)['port'])")
+FLOW_USERDATA=$(echo "$ACQUIRED" | python3 -c "import json,sys;print(json.load(sys.stdin)['userdata'])")
+FLOW_EMAIL=$(echo "$ACQUIRED" | python3 -c "import json,sys;print(json.load(sys.stdin)['email'])")
+export FLOW_ACCOUNT_ID FLOW_PROFILE FLOW_PORT FLOW_USERDATA FLOW_EMAIL
+echo "   ✅ Conta $FLOW_ACCOUNT_ID adquirida: $FLOW_EMAIL (porta $FLOW_PORT)"
+
+# Sempre liberar conta no exit (sucesso ou falha)
+release_account_on_exit() {
+    local code=$?
+    if [ -n "${FLOW_ACCOUNT_ID:-}" ]; then
+        if [ "$code" -ne 0 ]; then
+            node "$SCRIPTS_DIR/flow-account-manager.js" release "$FLOW_ACCOUNT_ID" --reason generic_failure >/dev/null 2>&1
+        else
+            node "$SCRIPTS_DIR/flow-account-manager.js" release "$FLOW_ACCOUNT_ID" >/dev/null 2>&1
+        fi
+    fi
+}
+trap release_account_on_exit EXIT
+
+echo "🌐 FASE 4: Verificando Chrome (porta $FLOW_PORT)..."
+CHROME_RUNNING=$(curl -s "http://localhost:$FLOW_PORT/json/version" 2>/dev/null | head -1)
 if [ -z "$CHROME_RUNNING" ]; then
-    echo "   Lançando Chrome com debug port..."
-    TEMP_DIR="/tmp/chrome-veo3"
-    rm -rf "$TEMP_DIR" && mkdir -p "$TEMP_DIR/Profile 7"
-    cp -R "$HOME/Library/Application Support/Google/Chrome/Profile 7/"* "$TEMP_DIR/Profile 7/" 2>/dev/null || true
-    cp "$HOME/Library/Application Support/Google/Chrome/Local State" "$TEMP_DIR/" 2>/dev/null || true
+    echo "   Lançando Chrome (perfil: $FLOW_PROFILE, port: $FLOW_PORT)..."
+    mkdir -p "$FLOW_USERDATA/$FLOW_PROFILE"
+    if [ ! -f "$FLOW_USERDATA/$FLOW_PROFILE/Preferences" ]; then
+        cp -R "$HOME/Library/Application Support/Google/Chrome/$FLOW_PROFILE/"* "$FLOW_USERDATA/$FLOW_PROFILE/" 2>/dev/null || true
+        cp "$HOME/Library/Application Support/Google/Chrome/Local State" "$FLOW_USERDATA/" 2>/dev/null || true
+    fi
     "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
-        --user-data-dir="$TEMP_DIR" --profile-directory="Profile 7" \
-        --remote-debugging-port=9222 "https://labs.google/fx/tools/flow" &
+        --user-data-dir="$FLOW_USERDATA" --profile-directory="$FLOW_PROFILE" \
+        --remote-debugging-port="$FLOW_PORT" "https://labs.google/fx/tools/flow" &
     sleep 10
     echo "   ✅ Chrome lançado"
 else
-    echo "   ✅ Chrome já rodando com debug port"
+    echo "   ✅ Chrome já rodando na porta $FLOW_PORT"
 fi
 echo ""
 
@@ -302,45 +374,59 @@ EXISTING_CENAS=$(ls "$CENAS_DIR" 2>/dev/null | wc -l | tr -d ' ')
 if [ "$EXISTING_CENAS" -ge "$CENAS_COUNT" ]; then
     echo "⏭️  FASE 4b: $EXISTING_CENAS cenas já existem — pulando geração"
 else
-    echo "🎨 FASE 4b: Gerando visuais ($CENAS_COUNT cenas)..."
+    echo "🎨 FASE 4b: Gerando visuais ($CENAS_COUNT cenas) — submit + watch em paralelo"
 
     cd "$PROJECT_DIR"
+
+    # 1) Inicia flow-watch em background: MutationObserver pega cenas conforme aparecem.
+    #    Download direto via Node https (concurrency 6, com cookies da sessão).
+    WATCH_LOG="/tmp/loopx-flow-watch-$$.log"
+    nohup node scripts/flow-watch.js "$EPISODE_DIR/prompts-veo3.md" \
+        --output "$CENAS_DIR" \
+        --port "$FLOW_PORT" \
+        --start 1 --end "$CENAS_COUNT" \
+        --concurrency 6 \
+        --max-idle 900 > "$WATCH_LOG" 2>&1 &
+    WATCH_PID=$!
+    echo "   👀 flow-watch background (PID $WATCH_PID, log $WATCH_LOG)"
+
+    # 2) flow-watch precisa que o projeto Flow já esteja aberto. veo3-generator cria projeto novo.
+    #    Dá 5s pro watch achar a tab depois que generator criar projeto.
+    sleep 3
+
+    # 3) Submit em foreground (com nossa humanização anti-abuse + --submit-only)
     node scripts/veo3-generator.js "$EPISODE_DIR/prompts-veo3.md" \
         --start 1 --end "$CENAS_COUNT" --batch 1 \
-        --output "$CENAS_DIR"
+        --port "$FLOW_PORT" \
+        --output "$CENAS_DIR" \
+        --submit-only
 
-    # Download loop (até ter todas ou 5 tentativas)
-    ATTEMPTS=0
-    MAX_ATTEMPTS=5
-    while [ "$ATTEMPTS" -lt "$MAX_ATTEMPTS" ]; do
-        EXISTING_CENAS=$(ls "$CENAS_DIR" 2>/dev/null | wc -l | tr -d ' ')
-        echo "   📊 $EXISTING_CENAS / $CENAS_COUNT cenas baixadas"
+    SUBMIT_EXIT=$?
+    echo "   📤 Submit terminou (exit=$SUBMIT_EXIT)"
 
-        if [ "$EXISTING_CENAS" -ge "$CENAS_COUNT" ]; then
-            break
-        fi
-
-        PENDING=$((CENAS_COUNT - EXISTING_CENAS))
-        echo "   🔄 Tentativa $((ATTEMPTS+1)): baixando $PENDING faltantes..."
-        node scripts/flow-download.js "$EPISODE_DIR/prompts-veo3.md" \
-            --start 1 --end "$CENAS_COUNT" \
-            --output "$CENAS_DIR" || true
-
-        ATTEMPTS=$((ATTEMPTS + 1))
-
-        if [ "$ATTEMPTS" -lt "$MAX_ATTEMPTS" ]; then
-            EXISTING_CENAS=$(ls "$CENAS_DIR" 2>/dev/null | wc -l | tr -d ' ')
-            if [ "$EXISTING_CENAS" -lt "$CENAS_COUNT" ]; then
-                echo "   ⏳ Aguardando 60s para geração no Flow..."
-                sleep 60
-            fi
-        fi
-    done
+    # 4) Espera flow-watch terminar (sai após --max-idle min sem novas cenas)
+    echo "   ⏳ Aguardando flow-watch terminar (max-idle 15min)..."
+    wait "$WATCH_PID" 2>/dev/null
+    WATCH_EXIT=$?
+    echo "   👀 flow-watch terminou (exit=$WATCH_EXIT)"
+    tail -10 "$WATCH_LOG" 2>/dev/null
 
     EXISTING_CENAS=$(ls "$CENAS_DIR" 2>/dev/null | wc -l | tr -d ' ')
-    echo "✅ FASE 4b: $EXISTING_CENAS cenas baixadas"
+    echo "✅ FASE 4b: $EXISTING_CENAS / $CENAS_COUNT cenas baixadas"
 fi
 echo ""
+
+# ── Guard: NÃO prossegue pra FASE 5 se faltam cenas (vídeo final ficaria quebrado) ──
+# Threshold default 95%, override via env CENAS_THRESHOLD (0-100)
+CENAS_THRESHOLD="${CENAS_THRESHOLD:-95}"
+REQUIRED=$(( CENAS_COUNT * CENAS_THRESHOLD / 100 ))
+if [ "$EXISTING_CENAS" -lt "$REQUIRED" ]; then
+    echo "❌ FASE 5 BLOQUEADA: $EXISTING_CENAS / $CENAS_COUNT cenas baixadas ($(( EXISTING_CENAS * 100 / CENAS_COUNT ))%)"
+    echo "   Mínimo exigido: $REQUIRED ($CENAS_THRESHOLD%)"
+    echo "   Resolva o problema (Flow rate-limit, captcha, conta cooldown) e rode pipeline de novo"
+    echo "   Pra forçar mesmo assim: CENAS_THRESHOLD=0 ./pipeline-full.sh ..."
+    exit 2
+fi
 
 # ══════════════════════════════════════
 # FASE 5: Upload para Hetzner
@@ -437,22 +523,73 @@ echo ""
 if [ -f "$EPISODE_DIR/thumb-image.png" ]; then
     echo "⏭️  FASE 7: thumb-image.png já existe — pulando"
 else
-    echo "🎨 FASE 7: Gerando prompt de thumbnail..."
+    echo "🎨 FASE 7: Gerando prompt de thumbnail via skill /${GERENTE}..."
     if [ ! -f "$EPISODE_DIR/thumb.md" ]; then
-        claude -p --dangerously-skip-permissions "Read the roteiro at $EPISODE_DIR/roteiro.md.
-Read the thumbnail rules from $CHANNEL_DIR/Contexto Canal $CANAL.md (section Thumbnails).
-Generate a thumbnail prompt for Ideogram with:
-- Composition matching one of the 6 templates (T1-T6)
-- Elderly Mexican mestiza woman matching the story
-- Face well-lit and fully visible on left side, text space on right
-- Bold text overlay with 3 colors: white (setup) + yellow #FFD700 (bridge) + red #FF2020 (impact)
-- Small red badge bottom left: HISTORIA DE VIDA
-- 16:9, photorealistic cinematic
-Write to: $EPISODE_DIR/thumb.md" --max-turns 10
+        ROTEIRO_TXT=$(cat "$EPISODE_DIR/roteiro.md")
+        EP_TITLE=$(basename "$EPISODE_DIR" | sed 's/^[0-9]* - //')
+        # Template fixo do canal (opcional — se existir, skill recebe como contexto extra)
+        THUMB_TEMPLATE=""
+        if [ -f "$CHANNEL_DIR/Thumb-Template.md" ]; then
+            THUMB_TEMPLATE=$(cat "$CHANNEL_DIR/Thumb-Template.md")
+            echo "   📄 Anexando Thumb-Template.md do canal ao contexto"
+        fi
+        # Abordagem B: skill inline. Cada canal tem seu próprio estilo de thumb no skill.
+        SKILL_CONTENT=$(load_skill "$GERENTE")
+        claude -p --dangerously-skip-permissions "${SKILL_CONTENT}
+
+---
+
+EXECUTE: gere UM prompt pronto pra Ideogram (16:9) que produza a thumbnail do EP${NUM} deste canal.
+
+Título do EP${NUM}: ${EP_TITLE}
+
+Roteiro:
+${ROTEIRO_TXT}
+
+$([ -n "$THUMB_TEMPLATE" ] && printf "Template fixo do canal (siga 100%%):\n%s\n" "$THUMB_TEMPLATE")
+
+Regras:
+- Estilo visual, idioma do texto overlay, hashtags-de-thumb (se houver), figuras, cenários, paleta e tipografia SEGUEM exclusivamente o skill deste canal acima.
+- NÃO use elementos visuais, paleta ou estilo de outros canais.
+- Output: UM bloco de prompt em INGLÊS pra colar direto no Ideogram. Sem preâmbulo, sem markdown.
+- Salve em: ${EPISODE_DIR}/thumb.md" --max-turns 20
     fi
-    echo "✅ FASE 7: thumb.md criado (gerar imagem manualmente no Ideogram)"
+    [ -f "$EPISODE_DIR/thumb.md" ] && echo "✅ FASE 7: thumb.md criado" || echo "⚠️  FASE 7: thumb.md NÃO criado — verifique se skill ${GERENTE} gera prompt de thumbnail"
 fi
 echo ""
+
+# ══════════════════════════════════════
+# FASE 8: Thumbnail Image (ai33.pro / Nano Banana Pro)
+# ══════════════════════════════════════
+if [ -f "$EPISODE_DIR/thumb-image.png" ]; then
+    echo "⏭️  FASE 8: thumb-image.png já existe — pulando"
+elif [ ! -f "$EPISODE_DIR/thumb.md" ]; then
+    echo "⚠️  FASE 8: thumb.md não existe — pulando (rode FASE 7 antes)"
+else
+    if [ -z "$AI33_API_KEY" ] && [ -f "$SCRIPTS_DIR/../.env" ]; then
+        export $(grep -E '^AI33_API_KEY=' "$SCRIPTS_DIR/../.env" | xargs)
+    fi
+    if [ -z "$AI33_API_KEY" ]; then
+        echo "⚠️  FASE 8: AI33_API_KEY não setada — pulando render"
+        echo "   (echo 'AI33_API_KEY=sk_...' >> .env)"
+    else
+        AI33_MODEL="${AI33_MODEL:-gemini-3.1-flash-image-preview}"
+        echo "🎨 FASE 8: Renderizando thumb via ai33.pro ($AI33_MODEL)..."
+        if node "$SCRIPTS_DIR/ai33-image.js" "$(cat "$EPISODE_DIR/thumb.md")" \
+                --model "$AI33_MODEL" --ar 16:9 --res 2K \
+                --out "$EPISODE_DIR/Thumb"; then
+            LATEST=$(ls -t "$EPISODE_DIR/Thumb"/*.png 2>/dev/null | head -1)
+            [ -n "$LATEST" ] && cp "$LATEST" "$EPISODE_DIR/thumb-image.png" \
+                && echo "✅ FASE 8: $EPISODE_DIR/thumb-image.png"
+        else
+            echo "❌ FASE 8: falha no render ai33"
+        fi
+    fi
+fi
+echo ""
+
+THUMB_STATUS="⬜ thumb-image"
+[ -f "$EPISODE_DIR/thumb-image.png" ] && THUMB_STATUS="✅ thumb-image"
 
 echo "════════════════════════════════════════════════════"
 echo "🎉 PIPELINE COMPLETO — Canal $CANAL EP$NUM"
@@ -461,5 +598,5 @@ echo ""
 echo "   ✅ roteiro.md    ✅ audio.wav     ✅ audio.srt"
 echo "   ✅ cenas.md      ✅ prompts-veo3  ✅ Cenas/"
 echo "   ✅ desc.md       ✅ README.md     ✅ video-final.mp4 ($SIZE)"
-echo "   ✅ thumb.md      ⬜ thumb-image   ⬜ YouTube upload"
+echo "   ✅ thumb.md      $THUMB_STATUS   ⬜ YouTube upload"
 echo "════════════════════════════════════════════════════"

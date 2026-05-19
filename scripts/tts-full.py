@@ -27,10 +27,6 @@ CHANNELS_JSON = os.path.join(PROJECT_ROOT, "config", "channels.json")
 
 # Vozes por canal (rotação cíclica de 8 vozes)
 VOICE_PREFIXES = {
-    "E": "E-female-es",
-    "F": "F-female-es",
-    "G": "G-male-en",
-    "H": "H-male-en",
     "I": "I-male-es",
     "J": "J-male-es",
     "K": "K-male-es",
@@ -38,17 +34,13 @@ VOICE_PREFIXES = {
 
 # Idioma por canal (Qwen3-TTS aceita nomes completos: "spanish", "english", etc.)
 LANG_CODES = {
-    "E": "spanish",
-    "F": "spanish",
-    "G": "english",
-    "H": "english",
     "I": "spanish",
     "J": "spanish",
     "K": "spanish",
 }
 # Idioma curto pra Whisper (ISO 639-1)
 WHISPER_LANG = {
-    "E": "es", "F": "es", "G": "en", "H": "en", "I": "es", "J": "es", "K": "es",
+    "I": "es", "J": "es", "K": "es",
 }
 
 
@@ -78,7 +70,7 @@ def get_voice(canal, num):
     """Retorna voz por rotação cíclica (8 vozes por canal).
     Canal G usa voz fixa (mesmo narrador em todos os episódios)."""
     prefix = VOICE_PREFIXES.get(canal, f"{canal}-female-es")
-    if canal in ("G", "I", "J", "K"):
+    if canal in ("I", "J", "K"):
         return f"{prefix}-01"  # Fixed narrator
     idx = ((num - 1) % 8) + 1
     return f"{prefix}-{idx:02d}"
@@ -173,7 +165,7 @@ def apply_fades(audio, sr, fade_ms=180):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--num", type=int, required=True, help="Número do episódio")
-    parser.add_argument("--canal", type=str, default="E", help="Canal (E, F, G...)")
+    parser.add_argument("--canal", type=str, required=True, help="Canal (I, J, K, L)")
     parser.add_argument("--voice", type=str, default=None, help="Voz (default: automática)")
     args = parser.parse_args()
 
@@ -235,11 +227,13 @@ def main():
                 generate_audio(
                     text=chunk,
                     model=loaded_model,
+                    voice=os.path.basename(voice["audio_path"]).replace(".wav",""),  # rótulo no log = nome real da voz, não "af_heart"
                     ref_audio=voice["audio_path"],
                     ref_text=voice["ref_text"],
                     lang_code=LANG_CODES.get(args.canal, "spanish"),
                     speed=SPEED,
                     output_path=chunk_path,
+                    max_tokens=4096,  # default 1200 corta chunks em ~96s — chunks têm até 340 palavras (~2-3 min)
                     verbose=False
                 )
                 # O mlx-audio salva em subpasta
